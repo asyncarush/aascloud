@@ -20,7 +20,59 @@
 }
 
 body {
-  background: var(--background);
+  background: linear-gradient(120deg, #e0c3fc 0%, #8ec5fc 100%);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  min-height: 100vh;
+  transition: background 0.6s cubic-bezier(.4,0,.2,1), color 0.4s cubic-bezier(.4,0,.2,1);
+}
+
+/* Glassmorphism utility */
+.glass-bg {
+  background: rgba(255,255,255,0.7);
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.10);
+  backdrop-filter: blur(10px);
+  border-radius: 1.25rem;
+  transition: background 0.5s, box-shadow 0.5s;
+}
+
+/* Card with subtle accent */
+.card-bg {
+  background: linear-gradient(120deg, #f8fafc 80%, #e0c3fc 100%);
+  box-shadow: 0 2px 16px 0 rgba(31, 38, 135, 0.09);
+  border-radius: 1.25rem;
+  transition: background 0.5s, box-shadow 0.5s;
+}
+
+/* Accent gradient text */
+.gradient-text {
+  background: linear-gradient(90deg, #6366f1 0%, #8b5cf6 50%, #06b6d4 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-fill-color: transparent;
+}
+
+/* Section backgrounds */
+.section-bg {
+  background: linear-gradient(120deg, #f6d365 0%, #fda085 100%);
+  border-radius: 2rem;
+  transition: background 0.5s;
+}
+
+@media (prefers-color-scheme: dark) {
+  body {
+    background: linear-gradient(120deg, #232526 0%, #414345 100%);
+    color: #ededed;
+  }
+  .glass-bg {
+    background: rgba(23,23,23,0.7);
+    box-shadow: 0 8px 32px 0 rgba(0,0,0,0.20);
+  }
+  .card-bg {
+    background: linear-gradient(120deg, #232526 80%, #8ec5fc 100%);
+  }
+  .section-bg {
+    background: linear-gradient(120deg, #6366f1 0%, #8b5cf6 100%);
+  }
 }
