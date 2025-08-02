@@ -298,7 +298,7 @@ function AboutPage() {
               whileInView={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3, duration: 0.5 }}
             >
-              Ready to be part of the future? We're always looking for talented individuals passionate about cloud technology, AI, and innovation.
+              Ready to be part of the future? We&apos;re always looking for talented individuals passionate about cloud technology, AI, and innovation.
             </motion.p>
             <div className="flex flex-col sm:flex-row gap-6 justify-center">
               <motion.a 

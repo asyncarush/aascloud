@@ -144,7 +144,7 @@ export default function FrontendDevelopmentPage() {
           >
             <h2 className="text-3xl font-bold text-white mb-4">Ready to Build Something Amazing?</h2>
             <p className="text-gray-300 mb-8">
-              Let's discuss your frontend development needs and create a solution that exceeds your expectations.
+              Let&apos;s discuss your frontend development needs and create a solution that exceeds your expectations.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <button className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white font-semibold py-3 px-8 rounded-lg transition-all duration-300 transform hover:scale-105">

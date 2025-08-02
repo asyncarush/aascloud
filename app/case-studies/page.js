@@ -46,7 +46,7 @@ export default function CaseStudiesPage() {
               Case Studies
             </h1>
             <p className="text-xl text-gray-300 max-w-3xl mx-auto mb-8">
-              Real-world success stories showcasing how we've helped businesses transform through technology.
+              Real-world success stories showcasing how we&apos;ve helped businesses transform through technology.
             </p>
           </motion.div>
         </div>
@@ -122,7 +122,7 @@ export default function CaseStudiesPage() {
           >
             <h2 className="text-3xl font-bold text-white mb-4">Ready to Create Your Success Story?</h2>
             <p className="text-gray-300 mb-8">
-              Let's discuss how we can help transform your business with innovative technology solutions.
+              Let&apos;s discuss how we can help transform your business with innovative technology solutions.
             </p>
             <button className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-semibold py-3 px-8 rounded-lg transition-all duration-300 transform hover:scale-105">
               Start Your Project

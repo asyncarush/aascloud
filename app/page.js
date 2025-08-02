@@ -1585,11 +1585,11 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">
-              Let's Build Something
+              Let&apos;s Build Something
               <span className="bg-gradient-to-r from-pink-400 to-purple-600 bg-clip-text text-transparent"> Amazing Together</span>
             </h2>
             <p className="text-xl text-gray-300 max-w-3xl mx-auto">
-              Ready to transform your ideas into reality? Get in touch with our expert team and let's discuss your next project.
+              Ready to transform your ideas into reality? Get in touch with our expert team and let&apos;s discuss your next project.
             </p>
           </div>
 
@@ -1764,7 +1764,7 @@ export default function HomePage() {
                 </div>
 
                 <p className="text-sm text-gray-400 text-center">
-                  We'll get back to you within 24 hours.
+                  We&apos;ll get back to you within 24 hours.
                 </p>
               </form>
             </div>

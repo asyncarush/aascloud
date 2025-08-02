@@ -143,7 +143,7 @@ export default function AIIntegrationPage() {
           >
             <h2 className="text-3xl font-bold text-white mb-4">Ready to Embrace AI?</h2>
             <p className="text-gray-300 mb-8">
-              Let's explore how AI can revolutionize your business processes and unlock new opportunities.
+              Let&apos;s explore how AI can revolutionize your business processes and unlock new opportunities.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <button className="bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white font-semibold py-3 px-8 rounded-lg transition-all duration-300 transform hover:scale-105">

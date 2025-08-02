@@ -127,7 +127,7 @@ const ContactPage = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5, duration: 0.8 }}
           >
-            We're here to help you build the future. Reach out to us for project inquiries, support, or just to say hello.
+            We&apos;re here to help you build the future. Reach out to us for project inquiries, support, or just to say hello.
           </motion.p>
           
           {/* Animated Stars */}

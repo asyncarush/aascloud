@@ -9,17 +9,17 @@ import {
   FaCogs,
   FaDatabase,
 } from "react-icons/fa";
-// import { SiAmazonaws, SiMicrosoftazure, SiGooglecloud, SiKubernetes, SiDocker, SiTerraform } from "react-icons/si";
+import { SiDocker, SiKubernetes } from "react-icons/si";
 import Footer from "@/components/Footer";
 
 export default function CloudConsultingPage() {
   const technologies = [
-    { name: "AWS", icon: SiAmazonaws, color: "text-orange-400" },
-    { name: "Azure", icon: SiMicrosoftazure, color: "text-blue-400" },
-    { name: "Google Cloud", icon: SiGooglecloud, color: "text-green-400" },
+    { name: "AWS", icon: FaCloud, color: "text-orange-400" },
+    { name: "Azure", icon: FaCloud, color: "text-blue-400" },
+    { name: "Google Cloud", icon: FaCloud, color: "text-green-400" },
     { name: "Kubernetes", icon: SiKubernetes, color: "text-blue-500" },
     { name: "Docker", icon: SiDocker, color: "text-blue-400" },
-    { name: "Terraform", icon: SiTerraform, color: "text-purple-400" },
+    { name: "Terraform", icon: FaCogs, color: "text-purple-400" },
     { name: "Security", icon: FaShieldAlt, color: "text-red-400" },
     { name: "Monitoring", icon: FaChartLine, color: "text-yellow-400" },
   ];
@@ -179,7 +179,7 @@ export default function CloudConsultingPage() {
               Ready for Cloud Transformation?
             </h2>
             <p className="text-gray-300 mb-8">
-              Let's design and implement a cloud strategy that drives your
+              Let&apos;s design and implement a cloud strategy that drives your
               business forward.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
