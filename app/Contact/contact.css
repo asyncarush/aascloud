@@ -1,0 +1,32 @@
+/* Custom styles for the Contact Us page */
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 1rem;
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+}
+
+.form-input {
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 0.5rem;
+  color: #fff;
+  padding: 0.75rem 1rem;
+  transition: background 0.3s ease, border 0.3s ease;
+}
+
+.form-input::placeholder {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.form-input:focus {
+  background: rgba(255, 255, 255, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  outline: none;
+}
+
+.gradient-bg {
+    background: linear-gradient(135deg, #1e3a8a, #4f46e5, #8b5cf6);
+}

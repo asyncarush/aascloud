@@ -44,13 +44,13 @@ const Navbar = () => {
             </div>
           </div>
           <div className="hidden md:flex items-center">
-            <a
-              href="#contact"
+            <Link
+              href="/"
               className="ml-8 inline-flex items-center px-5 py-2 text-base font-bold rounded-full shadow-xl text-white bg-gradient-to-r from-indigo-500 via-blue-400 to-purple-500 border-2 border-transparent hover:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-400 transition-all duration-300 scale-100 hover:scale-105 active:scale-95 animate-glow"
               style={{ boxShadow: "0 4px 32px 0 rgba(99,102,241,0.18)" }}
             >
               Get Started
-            </a>
+            </Link>
           </div>
           <div className="-mr-2 flex items-center md:hidden">
             {/* Theme Toggle Button for Mobile */}
@@ -127,14 +127,14 @@ const Navbar = () => {
                 {item.label}
               </Link>
             ))}
-            <a
-              href="#contact"
+            <Link
+              href="/"
               className="mt-4 inline-flex items-center justify-center px-8 py-3 text-lg font-extrabold rounded-full shadow-xl text-white bg-gradient-to-r from-indigo-500 via-blue-400 to-purple-500 border-2 border-transparent hover:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-400 transition-all duration-300 animate-glow"
               style={{ boxShadow: "0 4px 32px 0 rgba(99,102,241,0.18)" }}
               onClick={toggleMobileMenu}
             >
               Get Started
-            </a>
+            </Link>
           </div>
         </div>
       </div>

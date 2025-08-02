@@ -6,6 +6,8 @@ import { FaPhone, FaEnvelope, FaMapMarkerAlt, FaClock, FaLinkedin, FaInstagram, 
 import ContactForm from '../../components/ContactForm';
 import './contact.css';
 
+const isMobile = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 600px)').matches;
+
 const ContactPage = () => {
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [isHovered, setIsHovered] = useState(false);
@@ -19,21 +21,14 @@ const ContactPage = () => {
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
 
-  // Floating particles animation (client-side only)
-  const [isClient, setIsClient] = useState(false);
-  const [particles, setParticles] = useState([]);
-
-  useEffect(() => {
-    setIsClient(true);
-    // Generate particles only on client side
-    setParticles(Array.from({ length: 20 }, (_, i) => ({
-      id: i,
-      x: Math.random() * 100,
-      y: Math.random() * 100,
-      delay: Math.random() * 2,
-      duration: 3 + Math.random() * 2,
-    })));
-  }, []);
+  // Floating particles animation
+  const particles = Array.from({ length: 20 }, (_, i) => ({
+    id: i,
+    x: Math.random() * 100,
+    y: Math.random() * 100,
+    delay: Math.random() * 2,
+    duration: 3 + Math.random() * 2,
+  }));
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -61,33 +56,30 @@ const ContactPage = () => {
 
   return (
     <div className="min-h-screen w-full gradient-bg text-white font-sans relative overflow-hidden">
-      {/* Animated Background Particles - Client-side only */}
-      {isClient && (
-        <div className="absolute inset-0 pointer-events-none">
-          {particles.map((particle) => (
-            <motion.div
-              key={particle.id}
-              className="absolute w-1 h-1 bg-gradient-to-r from-blue-400 to-purple-500 rounded-full"
-              style={{
-                left: `${particle.x}%`,
-                top: `${particle.y}%`,
-              }}
-              initial={false}
-              animate={{
-                y: [-20, -100, -20],
-                opacity: [0, 1, 0],
-                scale: [0, 1, 0],
-              }}
-              transition={{
-                duration: particle.duration,
-                repeat: Infinity,
-                delay: particle.delay,
-                ease: "easeInOut",
-              }}
-            />
-          ))}
-        </div>
-      )}
+      {/* Animated Background Particles */}
+      <div className="absolute inset-0 pointer-events-none">
+        {particles.map((particle) => (
+          <motion.div
+            key={particle.id}
+            className="absolute w-1 h-1 bg-gradient-to-r from-blue-400 to-purple-500 rounded-full"
+            style={{
+              left: `${particle.x}%`,
+              top: `${particle.y}%`,
+            }}
+            animate={{
+              y: [-20, -100, -20],
+              opacity: [0, 1, 0],
+              scale: [0, 1, 0],
+            }}
+            transition={{
+              duration: particle.duration,
+              repeat: Infinity,
+              delay: particle.delay,
+              ease: "easeInOut",
+            }}
+          />
+        ))}
+      </div>
 
       {/* Interactive Mouse Follower */}
       <motion.div
@@ -106,8 +98,8 @@ const ContactPage = () => {
       <motion.div 
         className="container mx-auto px-4 py-16 sm:py-24 relative z-10"
         variants={containerVariants}
-        initial="hidden"
-        animate="visible"
+        initial={isMobile ? false : "hidden"}
+        animate={isMobile ? false : "visible"}
       >
         
         {/* Enhanced Intro Message */}
@@ -275,7 +267,8 @@ const ContactPage = () => {
               }}
             >
               <motion.div
-                className="absolute inset-0 bg-gradient-to-r from-pink-500/10 via-purple-500/10 to-blue-500/10 rounded-2xl"
+                className="absolute inset-0 bg-gradient-to-r from-pink-500/10 via-purple-500/10 to-blue-500/10 rounded-2xl z-0"
+                style={{ pointerEvents: 'none' }}
                 animate={{
                   background: [
                     "radial-gradient(circle at 20% 50%, rgba(236, 72, 153, 0.1) 0%, transparent 50%)",
@@ -287,35 +280,35 @@ const ContactPage = () => {
                 transition={{ duration: 4, repeat: Infinity }}
               />
               <h3 className="text-2xl font-bold mb-4 bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent">Follow Us 🚀</h3>
-              <div className="flex justify-center space-x-8">
-                <motion.a 
-                  href="https://www.linkedin.com/company/107565947" 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
-                  className="text-gray-300 hover:text-blue-400 transition-colors"
-                  whileHover={{ 
-                    scale: 1.3, 
-                    rotate: 10,
-                    color: "#3b82f6"
-                  }}
-                  whileTap={{ scale: 0.9 }}
-                >
-                  <FaLinkedin size={32} />
-                </motion.a>
-                <motion.a 
-                  href="https://www.instagram.com/aascloud.info/" 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
-                  className="text-gray-300 hover:text-pink-400 transition-colors"
-                  whileHover={{ 
-                    scale: 1.3, 
-                    rotate: -10,
-                    color: "#ec4899"
-                  }}
-                  whileTap={{ scale: 0.9 }}
-                >
-                  <FaInstagram size={32} />
-                </motion.a>
+              <div className="flex justify-center space-x-8 z-10 relative">
+                <a
+  href="https://www.linkedin.com/company/107565947"
+  target="_blank"
+  rel="noopener noreferrer"
+  className="text-gray-300 hover:text-blue-400 transition-colors"
+>
+  <motion.span
+    whileHover={{ scale: 1.3, rotate: 10, color: "#3b82f6" }}
+    whileTap={{ scale: 0.9 }}
+    style={{ display: "inline-block" }}
+  >
+    <FaLinkedin size={32} />
+  </motion.span>
+</a>
+                <a
+  href="https://www.instagram.com/aascloud.info/"
+  target="_blank"
+  rel="noopener noreferrer"
+  className="text-gray-300 hover:text-pink-400 transition-colors"
+>
+  <motion.span
+    whileHover={{ scale: 1.3, rotate: -10, color: "#ec4899" }}
+    whileTap={{ scale: 0.9 }}
+    style={{ display: "inline-block" }}
+  >
+    <FaInstagram size={32} />
+  </motion.span>
+</a>
               </div>
             </motion.div>
           </div>
