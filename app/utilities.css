@@ -1,0 +1,46 @@
+/* Background utilities */
+.bg-glass {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.3s ease;
+}
+
+.bg-glass:hover {
+  background: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  transform: translateY(-2px);
+}
+
+/* Card styles */
+.card {
+  @apply bg-glass rounded-2xl p-6 shadow-lg transition-all duration-300;
+}
+
+/* Section styles */
+.section {
+  @apply py-16 md:py-24 relative overflow-hidden;
+}
+
+/* Text colors for dark backgrounds */
+.text-primary {
+  @apply text-white;
+}
+
+.text-secondary {
+  @apply text-gray-300;
+}
+
+/* Button styles */
+.btn {
+  @apply px-6 py-2.5 rounded-lg font-medium transition-all duration-300;
+}
+
+.btn-primary {
+  @apply bg-blue-600 hover:bg-blue-700 text-white;
+}
+
+.btn-outline {
+  @apply border border-white/20 hover:bg-white/10 text-white;
+}

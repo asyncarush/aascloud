@@ -1,12 +1,36 @@
 "use client";
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import "./globals.css";
+import { motion, useReducedMotion, useScroll, useTransform } from "framer-motion";
+import { FaStar, FaPaperPlane, FaEnvelope, FaRobot, FaMagic, FaLightbulb, FaChevronLeft, FaChevronRight } from "react-icons/fa";
+import NeuralNetworkFlow from "../components/NeuralNetworkFlow";
+import WavyFooter from "../components/WavyFooter";
+import Footer from "../components/Footer";
+import SuccessStory from "../components/SuccessStory";
 
 export default function HomePage() {
+  // Mobile device detection for disabling animation on phone only
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.matchMedia('(max-width: 600px)').matches);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+  // Performance and accessibility optimizations
+  const shouldReduceMotion = useReducedMotion();
+  const { scrollY } = useScroll();
+  const backgroundY = useTransform(scrollY, [0, 500], [0, 150]);
+  
   // Mobile menu state
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  
+  // Touch gesture handling
+  const [touchStart, setTouchStart] = useState(null);
+  const [touchEnd, setTouchEnd] = useState(null);
+  
   // Chatbot state
   const [chatMessages, setChatMessages] = useState([
     {
@@ -17,6 +41,49 @@ export default function HomePage() {
   ]);
   const [chatInput, setChatInput] = useState("");
   const chatContainerRef = useRef(null);
+  
+  // Viewport detection
+  const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
+  
+  useEffect(() => {
+    const updateViewport = () => {
+      setViewportSize({
+        width: window.innerWidth,
+        height: window.innerHeight
+      });
+    };
+    
+    updateViewport();
+    window.addEventListener('resize', updateViewport);
+    return () => window.removeEventListener('resize', updateViewport);
+  }, []);
+  
+  // Touch gesture detection for carousel
+  const minSwipeDistance = 50;
+  
+  const onTouchStart = useCallback((e) => {
+    setTouchEnd(null);
+    setTouchStart(e.targetTouches[0].clientX);
+  }, []);
+  
+  const onTouchMove = useCallback((e) => {
+    setTouchEnd(e.targetTouches[0].clientX);
+  }, []);
+  
+  const onTouchEnd = useCallback(() => {
+    if (!touchStart || !touchEnd) {
+      return;
+    }
+    const distance = touchStart - touchEnd;
+    const isLeftSwipe = distance > minSwipeDistance;
+    const isRightSwipe = distance < -minSwipeDistance;
+    
+    if (isLeftSwipe) {
+      setCarouselIdx((prev) => (prev + 1) % carouselSlides.length);
+    } else if (isRightSwipe) {
+      setCarouselIdx((prev) => (prev - 1 + carouselSlides.length) % carouselSlides.length);
+    }
+  }, [touchStart, touchEnd]);
 
   // Service cards data
   const serviceCards = [
@@ -88,8 +155,8 @@ export default function HomePage() {
     },
   ];
 
-  // Carousel slides data (must be after serviceCards is defined)
-  const carouselSlides = [
+  // Memoized carousel slides data for performance
+  const carouselSlides = useMemo(() => [
     {
       title: serviceCards[0].title,
       desc: serviceCards[0].desc,
@@ -118,19 +185,31 @@ export default function HomePage() {
       cta: serviceCards[3].cta,
       ctaHref: serviceCards[3].ctaHref,
     },
-  ];
+  ], [serviceCards]);
 
+  // Carousel state with performance optimization
   const [carouselIdx, setCarouselIdx] = useState(0);
-  const carouselTimeout = useRef();
+  const [isAutoPlaying, setIsAutoPlaying] = useState(true);
+  const [isUserInteracting, setIsUserInteracting] = useState(false);
 
-  // Carousel auto-slide
-  React.useEffect(() => {
-    carouselTimeout.current && clearTimeout(carouselTimeout.current);
-    carouselTimeout.current = setTimeout(() => {
-      setCarouselIdx((idx) => (idx + 1) % carouselSlides.length);
+  // Auto-advance carousel with pause on interaction
+  useEffect(() => {
+    if (!isAutoPlaying || isUserInteracting || shouldReduceMotion) {
+      return;
+    }
+    
+    const interval = setInterval(() => {
+      setCarouselIdx((prev) => (prev + 1) % carouselSlides.length);
     }, 5000);
-    return () => clearTimeout(carouselTimeout.current);
-  }, [carouselIdx]);
+    
+    return () => clearInterval(interval);
+  }, [carouselSlides.length, isAutoPlaying, isUserInteracting, shouldReduceMotion]);
+  
+  // Pause autoplay on user interaction
+  const handleUserInteraction = useCallback(() => {
+    setIsUserInteracting(true);
+    setTimeout(() => setIsUserInteracting(false), 10000); // Resume after 10s
+  }, []);
 
   // Navbar transparency on scroll
   const [navSolid, setNavSolid] = useState(false);
@@ -145,7 +224,9 @@ export default function HomePage() {
   // Handle sending chat message
   const handleSend = () => {
     const message = chatInput.trim();
-    if (!message) return;
+    if (!message) {
+      return;
+    }
     setChatMessages((msgs) => [
       ...msgs,
       { from: "user", name: "You", text: message },
@@ -184,28 +265,103 @@ export default function HomePage() {
   // Toggle mobile menu
   const toggleMobileMenu = () => setMobileMenuOpen((open) => !open);
 
+  // Service modal state
+  const [selectedService, setSelectedService] = useState(null);
+  const [isServiceModalOpen, setIsServiceModalOpen] = useState(false);
+
+  // Handle service card click
+  const handleServiceClick = (service) => {
+    setSelectedService(service);
+    setIsServiceModalOpen(true);
+  };
+
+  // Close service modal
+  const closeServiceModal = () => {
+    setIsServiceModalOpen(false);
+    setSelectedService(null);
+  };
+
+  // Service details data
+  const serviceDetails = {
+    "Frontend Development": {
+      technologies: ["React.js", "Next.js", "Vue.js", "Angular", "TypeScript", "Tailwind CSS"],
+      deliverables: ["Responsive Web Applications", "Progressive Web Apps (PWA)", "Single Page Applications (SPA)", "Component Libraries", "Performance Optimization"],
+      timeline: "2-8 weeks",
+      process: ["Requirements Analysis", "UI/UX Design", "Development", "Testing", "Deployment", "Maintenance"]
+    },
+    "Backend & APIs": {
+      technologies: ["Node.js", "Express.js", "Python", "Django", "PostgreSQL", "MongoDB", "Redis"],
+      deliverables: ["RESTful APIs", "GraphQL APIs", "Database Design", "Authentication Systems", "Real-time Features"],
+      timeline: "3-10 weeks",
+      process: ["Architecture Planning", "Database Design", "API Development", "Security Implementation", "Testing", "Documentation"]
+    },
+    "Cloud & DevOps": {
+      technologies: ["AWS", "Azure", "GCP", "Docker", "Kubernetes", "Terraform", "GitHub Actions"],
+      deliverables: ["Cloud Infrastructure", "CI/CD Pipelines", "Container Orchestration", "Monitoring Setup", "Security Configuration"],
+      timeline: "2-6 weeks",
+      process: ["Infrastructure Assessment", "Cloud Migration", "Pipeline Setup", "Security Hardening", "Monitoring", "Optimization"]
+    },
+    "AI & Automation": {
+      technologies: ["OpenAI GPT", "LangChain", "Python", "TensorFlow", "PyTorch", "Hugging Face", "Vector Databases"],
+      deliverables: ["AI Chatbots", "Document Processing", "Workflow Automation", "Custom AI Models", "Integration APIs"],
+      timeline: "4-12 weeks",
+      process: ["AI Strategy", "Data Preparation", "Model Development", "Integration", "Testing", "Deployment"]
+    },
+    "Mobile Apps": {
+      technologies: ["React Native", "Flutter", "Swift", "Kotlin", "Firebase", "App Store Connect"],
+      deliverables: ["iOS Applications", "Android Applications", "Cross-platform Apps", "App Store Deployment", "Push Notifications"],
+      timeline: "6-16 weeks",
+      process: ["App Design", "Development", "Testing", "App Store Submission", "Launch", "Maintenance"]
+    },
+    "UI/UX Design": {
+      technologies: ["Figma", "Adobe XD", "Sketch", "Principle", "InVision", "Framer"],
+      deliverables: ["User Research", "Wireframes", "Prototypes", "Design Systems", "Usability Testing"],
+      timeline: "2-8 weeks",
+      process: ["Research", "Wireframing", "Visual Design", "Prototyping", "Testing", "Handoff"]
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col section-bg transition-all duration-700">
       {/* Navigation */}
 
-      {/* Hero Section - Carousel */}
-      <section className="relative h-screen min-h-0 flex items-center justify-center overflow-hidden section-bg transition-all duration-700">
+      {/* Hero Section - Enhanced Carousel - Fully Responsive */}
+      <section 
+        className="relative h-screen min-h-[100dvh] flex items-center justify-center overflow-hidden section-bg transition-all duration-700 safe-area-inset"
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+        role="banner"
+        aria-label="Hero carousel"
+      >
         {carouselSlides.map((slide, idx) => (
-          <div
+          <motion.div
             key={slide.title}
-            className={`absolute inset-0 w-full h-full transition-opacity duration-700 ${
-              carouselIdx === idx ? "opacity-100 z-10" : "opacity-0 z-0"
+            className={`absolute inset-0 w-full h-full ${
+              carouselIdx === idx ? "z-10" : "z-0"
             }`}
+            initial={isMobile ? false : { opacity: 0 }}
+            animate={isMobile ? false : { 
+              opacity: carouselIdx === idx ? 1 : 0,
+              scale: carouselIdx === idx ? 1 : 1.05
+            }}
+            transition={isMobile ? undefined : { 
+              duration: shouldReduceMotion ? 0.1 : 0.7,
+              ease: "easeInOut"
+            }}
             aria-hidden={carouselIdx !== idx}
+            style={{
+              y: carouselIdx === idx ? backgroundY : 0
+            }}
           >
-            {/* Split layout: image left, content right */}
-            <div className="relative flex flex-col md:flex-row w-full h-full z-10">
-              {/* Image left */}
-              <div className="relative w-full md:w-1/2 h-64 md:h-full flex-shrink-0">
+            {/* Responsive layout: stacked on mobile, side-by-side on desktop */}
+            <div className="relative flex flex-col lg:flex-row w-full h-full z-10">
+              {/* Image section - responsive heights */}
+              <div className="relative w-full lg:w-1/2 h-2/5 sm:h-1/2 lg:h-full flex-shrink-0">
                 <img
                   src={slide.img}
                   alt={slide.title}
-                  className="w-full h-full object-cover object-center rounded-none md:rounded-l-3xl transition-all duration-700"
+                  className="w-full h-full object-cover object-center rounded-none lg:rounded-l-3xl transition-all duration-700"
                   draggable="false"
                   style={{
                     minHeight: "100%",
@@ -213,168 +369,289 @@ export default function HomePage() {
                   }}
                 />
                 <div
-                  className="absolute inset-0 bg-gradient-to-b from-black/80 via-black/60 to-black/30 md:rounded-l-3xl"
+                  className="absolute inset-0 bg-gradient-to-b from-black/80 via-black/60 to-black/30 lg:rounded-l-3xl"
                   style={{ backdropFilter: "blur(2px)" }}
                 />
               </div>
-              {/* Content right */}
-              <div className="flex flex-col justify-center items-start px-6 md:px-16 py-10 md:py-0 w-full md:w-1/2 bg-black/10 backdrop-blur-xl z-20">
-                <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold text-white drop-shadow-2xl mb-6 animate-fade-in text-left">
-                  {slide.title}
-                </h1>
-                <p className="mt-2 max-w-xl text-lg md:text-2xl text-white/90 mb-8 font-semibold animate-fade-in delay-100 text-left">
-                  {slide.desc}
-                </p>
-                <a
-                  href={slide.ctaHref}
-                  className="inline-block px-10 py-4 rounded-full bg-gradient-to-r from-indigo-600 via-blue-500 to-purple-500 text-white font-black text-xl md:text-2xl shadow-2xl hover:from-indigo-700 hover:to-purple-600 focus:outline-none transition-all duration-300 scale-100 hover:scale-105 active:scale-95 animate-fade-in delay-200"
+              {/* Content section - responsive padding and positioning */}
+              <div className="relative flex flex-col justify-center items-start px-4 sm:px-6 md:px-8 lg:px-16 py-4 sm:py-6 lg:py-0 w-full lg:w-1/2 bg-black/10 backdrop-blur-xl z-20 min-h-[60vh] lg:min-h-full">
+                {/* Floating badge - responsive positioning */}
+                <motion.div 
+                  initial={{ opacity: 0, y: -30 }} 
+                  animate={{ opacity: 1, y: 0 }} 
+                  transition={{ duration: 0.7, type: 'spring', delay: 0.2 }}
+                  className="absolute -top-2 sm:-top-4 lg:-top-8 left-4 sm:left-6 lg:left-8 z-30"
                 >
-                  {slide.cta}
-                </a>
+                  <motion.span
+                    className="inline-flex items-center justify-center bg-gradient-to-tr from-pink-400 via-orange-400 to-blue-400 rounded-full shadow-xl w-10 h-10 sm:w-12 sm:h-12 lg:w-16 lg:h-16 border-2 sm:border-3 lg:border-4 border-white/40 backdrop-blur-xl"
+                    animate={{ boxShadow: [
+                      "0 0 18px 4px #fb718588, 0 0 32px 8px #38bdf866",
+                      "0 0 32px 8px #38bdf866, 0 0 18px 4px #fb718588"
+                    ] }}
+                    transition={{ repeat: Infinity, duration: 2, repeatType: "reverse" }}
+                  >
+                    <FaStar className="text-yellow-300 text-sm sm:text-xl lg:text-3xl drop-shadow-lg animate-pulse" />
+                  </motion.span>
+                </motion.div>
+                {/* Animated heading with gradient - Fully Responsive */}
+                <motion.h1 
+                  initial={{ scale: 0.93, opacity: 0 }}
+                  animate={{ 
+                    scale: 1, 
+                    opacity: 1, 
+                    backgroundPosition: ["0% 50%", "100% 50%", "0% 50%"] 
+                  }}
+                  transition={{ 
+                    duration: 1.1, 
+                    type: 'spring', 
+                    delay: 0.3, 
+                    backgroundPosition: { repeat: Infinity, duration: 3 } 
+                  }}
+                  className="text-xl sm:text-2xl md:text-3xl lg:text-4xl xl:text-5xl 2xl:text-6xl font-extrabold mb-3 sm:mb-4 lg:mb-6 text-left bg-gradient-to-r from-pink-300 via-orange-300 via-blue-300 to-teal-300 bg-[length:200%_200%] bg-clip-text text-transparent drop-shadow-2xl leading-tight"
+                  style={{ backgroundSize: '200% 200%', backgroundPosition: '0% 50%' }}
+                >
+                  {slide.title}
+                </motion.h1>
+                {/* Animated subheading - Responsive */}
+                <motion.p 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.8, delay: 0.6 }}
+                  className="mt-1 sm:mt-2 max-w-xs sm:max-w-sm md:max-w-md lg:max-w-xl text-xs sm:text-sm md:text-base lg:text-lg xl:text-xl 2xl:text-2xl text-white/90 mb-4 sm:mb-6 lg:mb-8 font-semibold text-left leading-relaxed"
+                >
+                  {slide.desc}
+                </motion.p>
+                {/* Glassy animated button - Fully Responsive */}
+                <motion.a
+                  href={slide.ctaHref}
+                  initial={{ scale: 0.92, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  whileHover={{ 
+                    scale: 1.05, 
+                    boxShadow: "0 4px 32px 0 #fb718588, 0 1.5px 8px 0 #38bdf866", 
+                    borderColor: "#fb7185", 
+                    background: "linear-gradient(90deg, rgba(253,242,248,0.9) 0%, rgba(240,245,255,0.9) 100%)" 
+                  }}
+                  transition={{ duration: 0.3, type: 'spring', delay: 0.9 }}
+                  className="relative inline-flex items-center gap-1.5 sm:gap-2 lg:gap-3 px-4 sm:px-6 lg:px-8 xl:px-10 py-2.5 sm:py-3 lg:py-4 rounded-full bg-white/20 border-2 border-pink-200/50 shadow-xl font-black text-xs sm:text-sm md:text-base lg:text-lg xl:text-xl 2xl:text-2xl backdrop-blur-2xl text-white hover:text-pink-700 transition mb-2 z-10 group min-h-[44px] btn-mobile"
+                >
+                  <motion.span
+                    animate={{ rotate: [0, -10, 10, 0] }}
+                    transition={{ repeat: Infinity, duration: 2, repeatType: "mirror" }}
+                    className="inline-flex"
+                  >
+                    <FaPaperPlane className="text-pink-300 text-sm sm:text-base lg:text-lg xl:text-xl group-hover:text-orange-500 transition" />
+                  </motion.span>
+                  <span className="hidden sm:inline">{slide.cta}</span>
+                  <span className="sm:hidden">Start</span>
+                </motion.a>
               </div>
             </div>
-          </div>
+          </motion.div>
         ))}
-        {/* Carousel controls */}
-        <button
-          className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/60 text-white rounded-full p-2 z-20"
-          onClick={() =>
+        {/* Carousel controls - Enhanced with better UX */}
+        <motion.button
+          className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/60 text-white rounded-full p-2 sm:p-3 z-20 min-h-[44px] min-w-[44px] flex items-center justify-center backdrop-blur-sm transition-all duration-300 focus-visible touch-optimized"
+          onClick={() => {
             setCarouselIdx(
               (carouselIdx - 1 + carouselSlides.length) % carouselSlides.length
-            )
-          }
+            );
+            handleUserInteraction();
+          }}
+          whileHover={{ scale: shouldReduceMotion ? 1 : 1.1 }}
+          whileTap={{ scale: shouldReduceMotion ? 1 : 0.9 }}
           aria-label="Previous slide"
+          disabled={carouselSlides.length <= 1}
         >
-          <svg
-            className="h-6 w-6"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M15 19l-7-7 7-7"
-            />
-          </svg>
-        </button>
-        <button
-          className="absolute right-4 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/60 text-white rounded-full p-2 z-20"
-          onClick={() =>
-            setCarouselIdx((carouselIdx + 1) % carouselSlides.length)
-          }
+          <FaChevronLeft className="h-3 w-3 sm:h-4 sm:w-4 lg:h-5 lg:w-5" />
+        </motion.button>
+        
+        <motion.button
+          className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/60 text-white rounded-full p-2 sm:p-3 z-20 min-h-[44px] min-w-[44px] flex items-center justify-center backdrop-blur-sm transition-all duration-300 focus-visible touch-optimized"
+          onClick={() => {
+            setCarouselIdx((carouselIdx + 1) % carouselSlides.length);
+            handleUserInteraction();
+          }}
+          whileHover={{ scale: shouldReduceMotion ? 1 : 1.1 }}
+          whileTap={{ scale: shouldReduceMotion ? 1 : 0.9 }}
           aria-label="Next slide"
+          disabled={carouselSlides.length <= 1}
         >
-          <svg
-            className="h-6 w-6"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M9 5l7 7-7 7"
-            />
-          </svg>
-        </button>
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2 z-20">
+          <FaChevronRight className="h-3 w-3 sm:h-4 sm:w-4 lg:h-5 lg:w-5" />
+        </motion.button>
+        {/* Enhanced pagination dots */}
+        <div className="absolute bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 flex gap-1.5 sm:gap-2 z-20 safe-area-inset">
           {carouselSlides.map((_, idx) => (
-            <button
+            <motion.button
               key={idx}
-              className={`w-3 h-3 rounded-full border-2 ${
+              className={`relative rounded-full border-2 min-h-[44px] min-w-[44px] sm:min-h-auto sm:min-w-auto flex items-center justify-center transition-all duration-300 focus-visible touch-optimized ${
                 carouselIdx === idx
-                  ? "bg-indigo-500 border-indigo-200"
-                  : "bg-white/60 border-white/80"
-              } transition`}
-              onClick={() => setCarouselIdx(idx)}
+                  ? "bg-indigo-500 border-indigo-200 w-8 h-2.5 sm:w-10 sm:h-3"
+                  : "bg-white/60 border-white/80 w-2.5 h-2.5 sm:w-3 sm:h-3 hover:bg-white/80"
+              }`}
+              onClick={() => {
+                setCarouselIdx(idx);
+                handleUserInteraction();
+              }}
+              whileHover={{ scale: shouldReduceMotion ? 1 : 1.2 }}
+              whileTap={{ scale: shouldReduceMotion ? 1 : 0.9 }}
               aria-label={`Go to slide ${idx + 1}`}
-            />
+              aria-current={carouselIdx === idx ? "true" : "false"}
+            >
+              <span className="sr-only">Slide {idx + 1}</span>
+              {carouselIdx === idx && (
+                <motion.div
+                  className="absolute inset-0 bg-gradient-to-r from-indigo-400 to-purple-500 rounded-full"
+                  layoutId="activeSlide"
+                  transition={{ duration: shouldReduceMotion ? 0.1 : 0.3 }}
+                />
+              )}
+            </motion.button>
           ))}
         </div>
+        
+        {/* Autoplay control */}
+        <motion.button
+          className="absolute top-4 right-4 bg-black/40 hover:bg-black/60 text-white rounded-full p-2 z-20 min-h-[44px] min-w-[44px] flex items-center justify-center backdrop-blur-sm transition-all duration-300 focus-visible"
+          onClick={() => setIsAutoPlaying(!isAutoPlaying)}
+          whileHover={{ scale: shouldReduceMotion ? 1 : 1.1 }}
+          whileTap={{ scale: shouldReduceMotion ? 1 : 0.9 }}
+          aria-label={isAutoPlaying ? "Pause autoplay" : "Start autoplay"}
+        >
+          {isAutoPlaying ? (
+            <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/>
+            </svg>
+          ) : (
+            <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M8 5v14l11-7z"/>
+            </svg>
+          )}
+        </motion.button>
       </section>
 
       {/* Services Section */}
-      <div id="services" className="py-12 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center">
-            <h2 className="text-3xl tracking-tight font-extrabold text-gray-900 sm:text-4xl">
+      <section className="section-spacing relative safe-area-inset">
+        <div className="container-responsive">
+          <motion.div
+            initial={{ opacity: 0, y: shouldReduceMotion ? 0 : 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: shouldReduceMotion ? 0.1 : 0.8 }}
+            viewport={{ once: true, margin: "-100px" }}
+            className="text-center mb-8 sm:mb-12 lg:mb-16"
+          >
+            <h2 className="text-fluid-2xl lg:text-fluid-3xl font-bold text-white mb-4 sm:mb-6">
+              Our <span className="gradient-text">Services</span>
+            </h2>
+            <p className="text-fluid-base md:text-fluid-lg text-white/80 max-w-xs sm:max-w-md md:max-w-2xl lg:max-w-3xl mx-auto px-4 sm:px-0">
+              Comprehensive solutions designed to accelerate your digital transformation
+            </p>
+          </motion.div>
+        </div>
+      </section>
+      
+      <div
+        id="services"
+        className="relative py-16 min-h-[80vh] bg-white bg-[url('/mesh-bg.png')] bg-top bg-cover bg-no-repeat overflow-hidden"
+      >
+        <NeuralNetworkFlow style={{ top: 0, left: 0, width: "100%", height: "350px", zIndex: 1 }} />
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12">
+            <h2 className="text-4xl tracking-tight font-extrabold bg-gradient-to-r from-indigo-500 via-blue-400 to-purple-500 bg-clip-text text-transparent drop-shadow-2xl sm:text-5xl">
               Comprehensive Development Services
             </h2>
-            <p className="mt-4 max-w-2xl text-xl text-gray-500 mx-auto">
+            <p className="mt-4 max-w-2xl text-xl text-gray-700 dark:text-gray-300 mx-auto">
               End-to-end solutions tailored to your business needs
             </p>
           </div>
-          <div className="mt-16">
-            <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
-              {serviceCards.map((card, i) => {
-                return (
-                  <div
-                    key={card.title}
-                    className="relative group rounded-xl overflow-hidden shadow-xl border border-white/20 dark:border-white/10 bg-white/70 dark:bg-black/50 backdrop-blur-lg transition-all duration-500 hover:-translate-y-2 hover:shadow-2xl hover:backdrop-blur-2xl"
-                  >
-                    <div className="relative h-56 w-full">
-                      {/* Service Card Image with animated overlay */}
-                      <img
-                        src={card.image}
-                        alt={card.title}
-                        className="object-cover w-full h-full transition-transform duration-700 group-hover:scale-110 group-hover:rotate-1"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent opacity-90 transition-all duration-700 group-hover:opacity-0 group-hover:blur-sm" />
-                      <div className="absolute bottom-0 left-0 right-0 p-4">
-                        <h3 className="text-2xl font-extrabold bg-gradient-to-r from-indigo-400 via-blue-400 to-purple-500 bg-clip-text text-transparent drop-shadow-lg mb-2 tracking-tight">
-                          {card.title}
-                        </h3>
-                        <p className="text-white/90 text-base font-medium mb-3 drop-shadow-lg">
-                          {card.desc}
-                        </p>
-                        <a
-                          href={card.ctaHref}
-                          className="inline-block px-6 py-2 rounded-full bg-gradient-to-r from-indigo-500 via-blue-400 to-purple-500 text-white font-bold text-base shadow-lg transition-all duration-300 hover:from-indigo-600 hover:to-purple-600 hover:scale-110 active:scale-95 focus:outline-none animate-glow"
-                        >
-                          {card.cta}
-                        </a>
-                      </div>
-                    </div>
-                    <ul className="p-6 bg-white/80 dark:bg-black/40 rounded-2xl mt-0 flex flex-col gap-2">
-                      {card.features.map((feature, idx) => (
-                        <li
-                          key={idx}
-                          className="flex items-center text-indigo-600 mb-1 gap-2"
-                        >
-                          <svg
-                            className="flex-shrink-0 h-5 w-5 mr-0 text-gradient-indigo-purple"
-                            viewBox="0 0 20 20"
-                            fill="currentColor"
-                          >
-                            <path
-                              fillRule="evenodd"
-                              d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                              clipRule="evenodd"
-                            />
-                          </svg>
-                          <span className="text-gray-800 dark:text-gray-200 font-medium">
-                            {feature}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
+          <div className="mt-12 grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-3">
+            {serviceCards.map((card, i) => (
+              <motion.div
+                key={card.title}
+                initial={{ opacity: 0, y: shouldReduceMotion ? 0 : 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ duration: shouldReduceMotion ? 0.1 : 0.6, delay: i * 0.1 }}
+                viewport={{ once: true, margin: "-50px" }}
+                whileHover={{ y: shouldReduceMotion ? 0 : -10, scale: shouldReduceMotion ? 1 : 1.02 }}
+                className="relative group card-responsive bg-white/5 backdrop-blur-lg border border-white/10 hover:border-white/20 transition-all duration-500 h-full cursor-pointer touch-optimized"
+                onClick={() => handleServiceClick(card)}
+              >
+                {/* Animated glass shine */}
+                <span className="pointer-events-none absolute inset-0 z-10 rounded-3xl bg-gradient-to-tr from-white/60 via-transparent to-white/10 opacity-0 group-hover:opacity-60 transition-opacity duration-700 animate-glassy-shine" />
+                <div className="relative h-60 w-full">
+                  <img
+                    src={card.image}
+                    alt={card.title}
+                    className="object-cover w-full h-full transition-transform duration-700 group-hover:scale-110 group-hover:rotate-1"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent opacity-80 transition-all duration-700 group-hover:opacity-40 group-hover:blur-sm rounded-t-3xl" />
+                  <div className="absolute bottom-0 left-0 right-0 p-6">
+                    <h3 className="text-2xl font-extrabold bg-gradient-to-r from-indigo-400 via-blue-400 to-purple-500 bg-clip-text text-transparent drop-shadow-xl mb-2 tracking-tight">
+                      {card.title}
+                    </h3>
+                    <p className="text-white/90 text-base font-medium mb-4 drop-shadow-lg">
+                      {card.desc}
+                    </p>
+                    <button
+                      onClick={() => handleServiceClick(card)}
+                      className="inline-block px-7 py-2.5 rounded-full bg-gradient-to-r from-indigo-500 via-blue-400 to-purple-500 text-white font-bold text-base shadow-xl transition-all duration-300 hover:from-indigo-600 hover:to-purple-600 hover:scale-110 active:scale-95 focus:outline-none animate-glow backdrop-blur-md border border-white/30 cursor-pointer"
+                    >
+                      {card.cta}
+                    </button>
                   </div>
-                );
-              })}
-            </div>
+                </div>
+                <ul className="p-6 bg-white/60 dark:bg-white/10 rounded-2xl mt-0 flex flex-col gap-3 backdrop-blur-md border border-white/20">
+                  {card.features.map((feature, idx) => (
+                    <li
+                      key={idx}
+                      className="flex items-center text-indigo-600 mb-1 gap-2"
+                    >
+                      <svg
+                        className="flex-shrink-0 h-5 w-5 mr-0 text-gradient-indigo-purple"
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                      <span className="text-gray-800 dark:text-gray-100 font-medium">
+                        {feature}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                {/* Glassy border light effect */}
+                <span className="pointer-events-none absolute inset-0 rounded-3xl border-2 border-white/30 group-hover:border-indigo-300/60 transition-all duration-500" />
+              </motion.div>
+            ))}
           </div>
         </div>
       </div>
 
+      <style>{`
+@keyframes glassy-shine {
+  0% { opacity: 0; }
+  40% { opacity: 0.5; }
+  100% { opacity: 0; }
+}
+.animate-glassy-shine {
+  animation: glassy-shine 2.5s ease-in-out infinite;
+}
+.shadow-glass {
+  box-shadow: 0 8px 40px 0 rgba(80, 80, 180, 0.14), 0 1.5px 4px 0 rgba(80, 80, 180, 0.10);
+}
+`}</style>
+
       {/* Technology Stack Section */}
       <div
         id="technologies"
-        className="py-16 bg-gradient-to-b from-gray-50 to-white"
+        className="relative py-16 bg-gradient-to-b from-gray-50 to-white overflow-hidden"
       >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <NeuralNetworkFlow style={{ top: 0, left: 0, width: "100%", height: "350px", zIndex: 1 }} />
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center">
             <h2 className="text-4xl font-extrabold text-gray-900 sm:text-5xl">
               Our Technology Stack
@@ -413,54 +690,118 @@ export default function HomePage() {
                   Building responsive, interactive user interfaces with modern
                   JavaScript frameworks and libraries
                 </p>
-                <div className="mt-6 grid grid-cols-2 gap-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
                   {[
                     {
                       name: "React",
                       icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/react/react-original.svg",
                       desc: "A JavaScript library for building user interfaces",
+                      skills: ["Components & JSX", "Hooks & State", "Props & Events", "Virtual DOM"],
+                      resources: ["React Official Docs", "React Tutorial", "Codecademy React", "freeCodeCamp"],
+                      level: "Beginner to Advanced",
+                      timeToLearn: "2-4 months"
                     },
                     {
                       name: "Next.js",
                       icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/nextjs/nextjs-original-wordmark.svg",
                       desc: "The React Framework for Production",
+                      skills: ["SSR & SSG", "API Routes", "File-based Routing", "Image Optimization"],
+                      resources: ["Next.js Learn", "Vercel Docs", "Next.js Handbook", "YouTube Tutorials"],
+                      level: "Intermediate",
+                      timeToLearn: "1-2 months"
                     },
                     {
                       name: "TypeScript",
                       icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/typescript/typescript-original.svg",
                       desc: "Strongly typed programming language",
+                      skills: ["Type Annotations", "Interfaces", "Generics", "Decorators"],
+                      resources: ["TypeScript Handbook", "TypeScript Deep Dive", "Execute Program", "Type Challenges"],
+                      level: "Intermediate",
+                      timeToLearn: "1-3 months"
                     },
                     {
                       name: "Tailwind CSS",
-                      icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/tailwindcss/tailwindcss-plain.svg",
+                      icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/tailwindcss/tailwindcss-original-wordmark.svg",
                       desc: "A utility-first CSS framework",
+                      skills: ["Utility Classes", "Responsive Design", "Custom Components", "Dark Mode"],
+                      resources: ["Tailwind Docs", "Tailwind UI", "Headless UI", "Tailwind Play"],
+                      level: "Beginner",
+                      timeToLearn: "2-4 weeks"
                     },
                     {
                       name: "Redux",
                       icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/redux/redux-original.svg",
                       desc: "Predictable state container for JavaScript apps",
-                    },
+                      skills: ["Actions & Reducers", "Store Management", "Middleware", "Redux Toolkit"],
+                      resources: ["Redux Docs", "Redux Toolkit", "Egghead Redux", "Dave Ceddia Blog"],
+                      level: "Intermediate",
+                      timeToLearn: "1-2 months"
+                    }
                   ].map((tech, idx) => (
-                    <div
+                    <motion.div
                       key={idx}
-                      className="group relative p-4 bg-white rounded-xl border border-gray-200 hover:shadow-md transition-all duration-300"
+                      initial={{ opacity: 0, y: 20 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.5, delay: idx * 0.1 }}
+                      viewport={{ once: true }}
+                      whileHover={{ scale: 1.02, boxShadow: "0 10px 30px rgba(0,0,0,0.1)" }}
+                      className="group relative p-6 bg-white rounded-2xl border border-gray-200 hover:border-blue-300 transition-all duration-300 cursor-pointer"
                     >
-                      <div className="flex flex-col items-center text-center">
-                        <div className="h-16 w-16 flex items-center justify-center">
+                      <div className="flex items-center mb-4">
+                        <div className="h-12 w-12 flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 rounded-xl">
                           <img
                             src={tech.icon}
                             alt={tech.name}
-                            className="h-10 w-10"
+                            className="h-8 w-8"
                           />
                         </div>
-                        <h4 className="mt-3 font-medium text-gray-900">
-                          {tech.name}
-                        </h4>
-                        <p className="mt-1 text-sm text-gray-500 group-hover:text-gray-700 transition-colors">
-                          {tech.desc}
-                        </p>
+                        <div className="ml-4">
+                          <h4 className="text-lg font-bold text-gray-900">
+                            {tech.name}
+                          </h4>
+                          <p className="text-sm text-gray-500">
+                            {tech.desc}
+                          </p>
+                        </div>
                       </div>
-                    </div>
+
+                      <div className="mb-4 flex flex-wrap gap-2">
+                        <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
+                          {tech.level}
+                        </span>
+                        <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full">
+                          {tech.timeToLearn}
+                        </span>
+                      </div>
+
+                      <div className="mb-4">
+                        <h5 className="text-sm font-semibold text-gray-700 mb-2">Key Skills:</h5>
+                        <div className="flex flex-wrap gap-1">
+                          {tech.skills.map((skill, skillIdx) => (
+                            <span
+                              key={skillIdx}
+                              className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-md"
+                            >
+                              {skill}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <h5 className="text-sm font-semibold text-gray-700 mb-2">Study Resources:</h5>
+                        <ul className="space-y-1">
+                          {tech.resources.map((resource, resIdx) => (
+                            <li key={resIdx} className="flex items-center text-xs text-gray-600">
+                              <div className="w-1 h-1 bg-blue-400 rounded-full mr-2"></div>
+                              {resource}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-indigo-500/5 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    </motion.div>
                   ))}
                 </div>
               </div>
@@ -493,54 +834,118 @@ export default function HomePage() {
                   Robust server-side solutions with high performance and
                   scalability
                 </p>
-                <div className="mt-6 grid grid-cols-2 gap-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
                   {[
                     {
                       name: "Node.js",
                       icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/nodejs/nodejs-original.svg",
                       desc: "JavaScript runtime built on Chrome's V8 engine",
+                      skills: ["Event Loop", "NPM Packages", "File System", "HTTP Modules"],
+                      resources: ["Node.js Docs", "Node.js Tutorial", "The Node.js Handbook", "NodeSchool"],
+                      level: "Intermediate",
+                      timeToLearn: "2-3 months"
                     },
                     {
                       name: "Express",
                       icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/express/express-original.svg",
                       desc: "Fast, unopinionated web framework for Node.js",
+                      skills: ["Routing", "Middleware", "Template Engines", "Error Handling"],
+                      resources: ["Express.js Guide", "MDN Express Tutorial", "Express in Action", "FreeCodeCamp"],
+                      level: "Beginner to Intermediate",
+                      timeToLearn: "1-2 months"
                     },
                     {
                       name: "Python",
                       icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/python/python-original.svg",
                       desc: "High-level programming language",
+                      skills: ["Data Structures", "OOP", "Libraries", "Web Scraping"],
+                      resources: ["Python.org Tutorial", "Automate the Boring Stuff", "Real Python", "Python Crash Course"],
+                      level: "Beginner to Advanced",
+                      timeToLearn: "3-6 months"
                     },
                     {
                       name: "Django",
                       icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/django/django-plain.svg",
                       desc: "High-level Python web framework",
+                      skills: ["Models & ORM", "Views & Templates", "Admin Interface", "Authentication"],
+                      resources: ["Django Tutorial", "Django for Beginners", "Two Scoops of Django", "Django Girls"],
+                      level: "Intermediate",
+                      timeToLearn: "2-4 months"
                     },
                     {
                       name: "PostgreSQL",
                       icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/postgresql/postgresql-original.svg",
                       desc: "Powerful open-source relational database",
-                    },
+                      skills: ["SQL Queries", "Indexing", "Transactions", "Performance Tuning"],
+                      resources: ["PostgreSQL Tutorial", "PostgreSQL Documentation", "SQL Bolt", "W3Schools SQL"],
+                      level: "Beginner to Advanced",
+                      timeToLearn: "2-4 months"
+                    }
                   ].map((tech, idx) => (
-                    <div
+                    <motion.div
                       key={idx}
-                      className="group relative p-4 bg-white rounded-xl border border-gray-200 hover:shadow-md transition-all duration-300"
+                      initial={{ opacity: 0, y: 20 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.5, delay: idx * 0.1 }}
+                      viewport={{ once: true }}
+                      whileHover={{ scale: 1.02, boxShadow: "0 10px 30px rgba(0,0,0,0.1)" }}
+                      className="group relative p-6 bg-white rounded-2xl border border-gray-200 hover:border-green-300 transition-all duration-300 cursor-pointer"
                     >
-                      <div className="flex flex-col items-center text-center">
-                        <div className="h-16 w-16 flex items-center justify-center">
+                      <div className="flex items-center mb-4">
+                        <div className="h-12 w-12 flex items-center justify-center bg-gradient-to-br from-green-50 to-emerald-100 rounded-xl">
                           <img
                             src={tech.icon}
                             alt={tech.name}
-                            className="h-10 w-10"
+                            className="h-8 w-8"
                           />
                         </div>
-                        <h4 className="mt-3 font-medium text-gray-900">
-                          {tech.name}
-                        </h4>
-                        <p className="mt-1 text-sm text-gray-500 group-hover:text-gray-700 transition-colors">
-                          {tech.desc}
-                        </p>
+                        <div className="ml-4">
+                          <h4 className="text-lg font-bold text-gray-900">
+                            {tech.name}
+                          </h4>
+                          <p className="text-sm text-gray-500">
+                            {tech.desc}
+                          </p>
+                        </div>
                       </div>
-                    </div>
+
+                      <div className="mb-4 flex flex-wrap gap-2">
+                        <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full">
+                          {tech.level}
+                        </span>
+                        <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
+                          {tech.timeToLearn}
+                        </span>
+                      </div>
+
+                      <div className="mb-4">
+                        <h5 className="text-sm font-semibold text-gray-700 mb-2">Key Skills:</h5>
+                        <div className="flex flex-wrap gap-1">
+                          {tech.skills.map((skill, skillIdx) => (
+                            <span
+                              key={skillIdx}
+                              className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-md"
+                            >
+                              {skill}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <h5 className="text-sm font-semibold text-gray-700 mb-2">Study Resources:</h5>
+                        <ul className="space-y-1">
+                          {tech.resources.map((resource, resIdx) => (
+                            <li key={resIdx} className="flex items-center text-xs text-gray-600">
+                              <div className="w-1 h-1 bg-green-400 rounded-full mr-2"></div>
+                              {resource}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      <div className="absolute inset-0 bg-gradient-to-r from-green-500/5 to-emerald-500/5 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    </motion.div>
                   ))}
                 </div>
               </div>
@@ -551,75 +956,106 @@ export default function HomePage() {
               <div className="p-8">
                 <div className="flex items-center">
                   <div className="flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-lg bg-gradient-to-br from-purple-500 to-indigo-600 text-white">
-                    <svg
-                      className="h-6 w-6"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"
-                      />
-                    </svg>
+                    <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
                   </div>
-                  <h3 className="ml-4 text-2xl font-bold text-gray-900">
-                    Mobile Development
-                  </h3>
+                  <h3 className="ml-4 text-2xl font-bold text-gray-900">Mobile Development</h3>
                 </div>
-                <p className="mt-4 text-gray-600">
-                  Cross-platform mobile applications with native performance
-                </p>
-                <div className="mt-6 grid grid-cols-2 gap-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                <p className="mt-4 text-gray-600">Cross-platform mobile applications with native performance.</p>
+                <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                   {[
                     {
                       name: "React Native",
                       icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/react/react-original.svg",
-                      desc: "Framework for building native apps using React",
+                      desc: "Build native apps with React",
+                      skills: ["JavaScript/ES6+", "React Hooks", "Component Styling", "State Management", "Native Module Bridging"],
+                      resources: ["React Native Docs", "Fullstack Open - Part 10", "Handlebar Labs", "egghead.io"],
+                      level: "Intermediate",
+                      timeToLearn: "3-6 months"
                     },
                     {
                       name: "Flutter",
                       icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/flutter/flutter-original.svg",
-                      desc: "UI toolkit for building natively compiled applications",
+                      desc: "Google's UI toolkit for beautiful apps",
+                      skills: ["Dart Programming", "Widget Composition", "State Management (Bloc)", "Async Programming", "Firebase"],
+                      resources: ["Flutter Docs", "Flutter Bootcamp", "Flutter Community", "Awesome Flutter"],
+                      level: "Beginner to Advanced",
+                      timeToLearn: "2-5 months"
                     },
                     {
                       name: "Swift",
                       icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/swift/swift-original.svg",
-                      desc: "Powerful language for iOS development",
+                      desc: "Language for Apple platforms",
+                      skills: ["Swift Language", "SwiftUI", "Core Data", "Combine Framework", "XCode"],
+                      resources: ["Apple Developer Docs", "Hacking with Swift", "Ray Wenderlich", "Stanford CS193p"],
+                      level: "Intermediate to Advanced",
+                      timeToLearn: "4-8 months"
                     },
                     {
                       name: "Kotlin",
                       icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/kotlin/kotlin-original.svg",
-                      desc: "Modern programming language for Android",
+                      desc: "Modern language for Android",
+                      skills: ["Kotlin Language", "Android Jetpack", "Coroutines", "Room Database", "Android Studio"],
+                      resources: ["Kotlin Docs", "Android Developer Docs", "Google Codelabs", "MindOrks"],
+                      level: "Intermediate to Advanced",
+                      timeToLearn: "4-8 months"
                     },
                     {
                       name: "Firebase",
                       icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/firebase/firebase-plain.svg",
-                      desc: "App development platform",
-                    },
+                      desc: "Backend-as-a-Service platform",
+                      skills: ["Authentication", "Firestore", "Cloud Functions", "Storage", "Security Rules"],
+                      resources: ["Firebase Docs", "Fireship.io", "Firebase YouTube", "Google Codelabs"],
+                      level: "Beginner to Intermediate",
+                      timeToLearn: "1-3 months"
+                    }
                   ].map((tech, idx) => (
-                    <div
+                    <motion.div
                       key={idx}
-                      className="group relative p-4 bg-white rounded-xl border border-gray-200 hover:shadow-md transition-all duration-300"
+                      initial={{ opacity: 0, y: 20 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.5, delay: idx * 0.1 }}
+                      viewport={{ once: true }}
+                      whileHover={{ scale: 1.02, boxShadow: "0 10px 30px rgba(0,0,0,0.1)" }}
+                      className="group relative p-6 bg-white rounded-2xl border border-gray-200 hover:border-purple-300 transition-all duration-300 cursor-pointer"
                     >
-                      <div className="flex flex-col items-center text-center">
-                        <div className="h-16 w-16 flex items-center justify-center">
-                          <img
-                            src={tech.icon}
-                            alt={tech.name}
-                            className="h-10 w-10"
-                          />
+                      <div className="flex items-center mb-4">
+                        <div className="h-12 w-12 flex items-center justify-center bg-gradient-to-br from-purple-50 to-indigo-100 rounded-xl">
+                          <img src={tech.icon} alt={tech.name} className="h-8 w-8" />
                         </div>
-                        <h4 className="mt-3 font-medium text-gray-900">
-                          {tech.name}
-                        </h4>
-                        <p className="mt-1 text-sm text-gray-500 group-hover:text-gray-700 transition-colors">
-                          {tech.desc}
-                        </p>
+                        <div className="ml-4">
+                          <h4 className="text-lg font-bold text-gray-900">{tech.name}</h4>
+                          <p className="text-sm text-gray-500">{tech.desc}</p>
+                        </div>
                       </div>
-                    </div>
+
+                      <div className="mb-4 flex flex-wrap gap-2">
+                        <span className="px-2 py-1 bg-purple-100 text-purple-700 text-xs font-medium rounded-full">{tech.level}</span>
+                        <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">{tech.timeToLearn}</span>
+                      </div>
+
+                      <div className="mb-4">
+                        <h5 className="text-sm font-semibold text-gray-700 mb-2">Key Skills:</h5>
+                        <div className="flex flex-wrap gap-1">
+                          {tech.skills.map((skill, skillIdx) => (
+                            <span key={skillIdx} className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-md">{skill}</span>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <h5 className="text-sm font-semibold text-gray-700 mb-2">Study Resources:</h5>
+                        <ul className="space-y-1">
+                          {tech.resources.map((resource, resIdx) => (
+                            <li key={resIdx} className="flex items-center text-xs text-gray-600">
+                              <div className="w-1 h-1 bg-purple-400 rounded-full mr-2"></div>
+                              {resource}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      <div className="absolute inset-0 bg-gradient-to-r from-purple-500/5 to-indigo-500/5 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    </motion.div>
                   ))}
                 </div>
               </div>
@@ -630,76 +1066,106 @@ export default function HomePage() {
               <div className="p-8">
                 <div className="flex items-center">
                   <div className="flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 text-white">
-                    <svg
-                      className="h-6 w-6"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
-                      />
-                    </svg>
+                    <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
                   </div>
-                  <h3 className="ml-4 text-2xl font-bold text-gray-900">
-                    DevOps & Cloud
-                  </h3>
+                  <h3 className="ml-4 text-2xl font-bold text-gray-900">DevOps & Cloud</h3>
                 </div>
-                <p className="mt-4 text-gray-600">
-                  Cloud infrastructure and CI/CD pipelines for seamless
-                  deployments
-                </p>
-                <div className="mt-6 grid grid-cols-2 gap-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                <p className="mt-4 text-gray-600">Cloud infrastructure and CI/CD pipelines for seamless deployments.</p>
+                <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                   {[
                     {
-                      name: "AWS",
-                      icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/amazonwebservices/amazonwebservices-original.svg",
-                      desc: "Cloud computing platform",
-                    },
+                    name: "AWS",
+                    icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/amazonwebservices/amazonwebservices-original-wordmark.svg",
+                    desc: "Amazon's cloud computing platform",
+                    skills: ["EC2 & S3", "VPC Networking", "IAM Roles", "Lambda", "CloudFormation"],
+                    resources: ["AWS Training", "A Cloud Guru", "Adrian Cantrill", "AWS Whitepapers"],
+                    level: "Beginner to Advanced",
+                    timeToLearn: "3-9 months"
+                  },
                     {
                       name: "Docker",
                       icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/docker/docker-original.svg",
                       desc: "Containerization platform",
+                      skills: ["Dockerfile", "Image Management", "Docker Compose", "Networking", "Volumes"],
+                      resources: ["Docker Docs", "Play with Docker", "Docker Curriculum", "Bret Fisher's Course"],
+                      level: "Beginner to Intermediate",
+                      timeToLearn: "1-2 months"
                     },
                     {
                       name: "Kubernetes",
                       icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/kubernetes/kubernetes-plain.svg",
-                      desc: "Container orchestration",
+                      desc: "Container orchestration system",
+                      skills: ["Pods & Deployments", "Services & Ingress", "ConfigMaps & Secrets", "StatefulSets", "Helm"],
+                      resources: ["Kubernetes Docs", "Kubernetes by Example", "KTHW", "CKAD/CKA Prep"],
+                      level: "Intermediate to Advanced",
+                      timeToLearn: "4-8 months"
                     },
                     {
                       name: "GitHub Actions",
                       icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/github/github-original.svg",
-                      desc: "CI/CD and automation",
+                      desc: "Automate workflows in GitHub",
+                      skills: ["Workflow Syntax", "Runners", "Actions Marketplace", "Secrets Management", "CI/CD Patterns"],
+                      resources: ["GitHub Actions Docs", "GitHub Learning Lab", "Awesome Actions", "Community Forums"],
+                      level: "Beginner to Intermediate",
+                      timeToLearn: "1-3 months"
                     },
                     {
                       name: "Terraform",
                       icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/terraform/terraform-original.svg",
-                      desc: "Infrastructure as Code",
-                    },
+                      desc: "Infrastructure as Code tool",
+                      skills: ["HCL Syntax", "Providers", "Modules", "State Management", "Terraform Cloud"],
+                      resources: ["Terraform Docs", "HashiCorp Learn", "Terraform Registry", "Anton Babenko"],
+                      level: "Intermediate",
+                      timeToLearn: "2-4 months"
+                    }
                   ].map((tech, idx) => (
-                    <div
+                    <motion.div
                       key={idx}
-                      className="group relative p-4 bg-white rounded-xl border border-gray-200 hover:shadow-md transition-all duration-300"
+                      initial={{ opacity: 0, y: 20 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.5, delay: idx * 0.1 }}
+                      viewport={{ once: true }}
+                      whileHover={{ scale: 1.02, boxShadow: "0 10px 30px rgba(0,0,0,0.1)" }}
+                      className="group relative p-6 bg-white rounded-2xl border border-gray-200 hover:border-amber-300 transition-all duration-300 cursor-pointer"
                     >
-                      <div className="flex flex-col items-center text-center">
-                        <div className="h-16 w-16 flex items-center justify-center">
-                          <img
-                            src={tech.icon}
-                            alt={tech.name}
-                            className="h-10 w-10"
-                          />
+                      <div className="flex items-center mb-4">
+                        <div className="h-12 w-12 flex items-center justify-center bg-gradient-to-br from-amber-50 to-orange-100 rounded-xl">
+                          <img src={tech.icon} alt={tech.name} className="h-8 w-8" />
                         </div>
-                        <h4 className="mt-3 font-medium text-gray-900">
-                          {tech.name}
-                        </h4>
-                        <p className="mt-1 text-sm text-gray-500 group-hover:text-gray-700 transition-colors">
-                          {tech.desc}
-                        </p>
+                        <div className="ml-4">
+                          <h4 className="text-lg font-bold text-gray-900">{tech.name}</h4>
+                          <p className="text-sm text-gray-500">{tech.desc}</p>
+                        </div>
                       </div>
-                    </div>
+
+                      <div className="mb-4 flex flex-wrap gap-2">
+                        <span className="px-2 py-1 bg-amber-100 text-amber-700 text-xs font-medium rounded-full">{tech.level}</span>
+                        <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">{tech.timeToLearn}</span>
+                      </div>
+
+                      <div className="mb-4">
+                        <h5 className="text-sm font-semibold text-gray-700 mb-2">Key Skills:</h5>
+                        <div className="flex flex-wrap gap-1">
+                          {tech.skills.map((skill, skillIdx) => (
+                            <span key={skillIdx} className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-md">{skill}</span>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <h5 className="text-sm font-semibold text-gray-700 mb-2">Study Resources:</h5>
+                        <ul className="space-y-1">
+                          {tech.resources.map((resource, resIdx) => (
+                            <li key={resIdx} className="flex items-center text-xs text-gray-600">
+                              <div className="w-1 h-1 bg-amber-400 rounded-full mr-2"></div>
+                              {resource}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      <div className="absolute inset-0 bg-gradient-to-r from-amber-500/5 to-orange-500/5 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    </motion.div>
                   ))}
                 </div>
               </div>
@@ -708,1025 +1174,739 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* AI Chatbot Demo Section */}
-      <div className="py-12 bg-indigo-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="lg:text-center">
-            <h2 className="text-3xl tracking-tight font-extrabold text-gray-900 sm:text-4xl">
-              AI-Driven Solutions
+      {/* Success Story Section */}
+      <SuccessStory />
+
+      {/* AI Solutions Section */}
+      <div id="ai-solutions" className="relative py-16 sm:py-20 lg:py-24 bg-gradient-to-b from-white to-gray-50 overflow-hidden">
+        <div className="absolute inset-0 bg-grid-slate-100 [mask-image:linear-gradient(0deg,#fff,rgba(255,255,255,0.6))]"></div>
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center">
+            <span className="inline-block px-3 py-1 text-sm font-semibold text-indigo-600 bg-indigo-50 rounded-full mb-4">
+              Intelligent Automation
+            </span>
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 tracking-tight">
+              Advanced AI Solutions
             </h2>
-            <p className="mt-4 max-w-2xl text-xl text-gray-500 lg:mx-auto">
-              Experience our OpenAI GPT integration in action
+            <p className="mt-4 text-lg sm:text-xl text-gray-600 max-w-3xl mx-auto">
+              Transform your business with cutting-edge AI technology and automation
             </p>
           </div>
-          <div className="mt-12 bg-white rounded-lg shadow-lg overflow-hidden">
-            <div className="md:flex">
-              <div className="md:flex-1 p-6">
-                <h3 className="text-xl font-medium text-gray-900">
-                  AI Help Center Demo
-                </h3>
-                <p className="mt-4 text-gray-500">
-                  Try our integrated AI chatbot powered by OpenAI's GPT
-                  technology. It can handle customer queries, technical FAQs,
-                  and provide intelligent responses.
-                </p>
-                <div
-                  className="mt-6 bg-gray-50 rounded-lg p-4 h-64 overflow-y-auto space-y-4"
-                  ref={chatContainerRef}
-                >
-                  {chatMessages.map((msg, idx) => (
-                    <div
-                      key={idx}
-                      className={
-                        msg.from === "ai"
-                          ? "flex items-start"
-                          : "flex items-start justify-end"
-                      }
+          <div className="relative mt-16">
+            {/* Animated background elements */}
+            <div className="absolute -top-20 -left-20 w-64 h-64 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+            <div className="absolute -bottom-20 -right-20 w-72 h-72 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+            
+            <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3 relative z-10">
+              {/* AI Capability Card 1 - 3D Tilt Effect */}
+              <motion.div 
+                className="group relative"
+                initial={{ opacity: 0, y: 50 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6 }}
+                viewport={{ once: true }}
+                whileHover={{ y: -10 }}
+              >
+                <div className="absolute inset-0.5 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl blur opacity-75 group-hover:opacity-100 transition duration-1000 group-hover:duration-200"></div>
+                <div className="relative bg-gray-900 rounded-2xl p-8 h-full border border-gray-800 hover:border-indigo-500/30 transition-colors duration-300">
+                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center mb-6 transform group-hover:rotate-12 transition-transform duration-500">
+                    <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-2xl font-bold text-white mb-4">Smart Process Automation</h3>
+                  <p className="text-gray-400 mb-6">Automate repetitive tasks and workflows with intelligent process automation, reducing manual effort by up to 70%.</p>
+                  <ul className="space-y-3">
+                    {['Document processing', 'Data extraction', 'Workflow automation'].map((item, i) => (
+                      <motion.li 
+                        key={i}
+                        className="flex items-center text-gray-300 group-hover:text-white transition-colors duration-300"
+                        initial={{ x: -20, opacity: 0 }}
+                        animate={{ x: 0, opacity: 1 }}
+                        transition={{ delay: 0.1 * i }}
+                      >
+                        <svg className="w-5 h-5 text-green-400 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        {item}
+                      </motion.li>
+                    ))}
+                  </ul>
+                  <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-t from-black/80 to-transparent flex items-end p-6">
+                    <motion.a 
+                      href="#contact"
+                      className="w-full py-3 px-6 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg text-white font-medium text-center transform translate-y-4 group-hover:translate-y-0 transition-all duration-300"
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
                     >
-                      {msg.from === "ai" ? (
-                        <>
-                          <div className="flex-shrink-0 chatbot-avatar">
-                            <div className="h-10 w-10 rounded-full bg-indigo-500 flex items-center justify-center text-white font-bold">
-                              AI
-                            </div>
-                          </div>
-                          <div className="ml-3 bg-white p-3 rounded-lg shadow-sm max-w-xs">
-                            <p className="text-sm font-medium text-gray-900">
-                              {msg.name}
-                            </p>
-                            <p className="mt-1 text-sm text-gray-500">
-                              {msg.text}
-                            </p>
-                          </div>
-                        </>
-                      ) : (
-                        <div className="ml-3 bg-indigo-100 p-3 rounded-lg shadow-sm max-w-xs">
-                          <p className="text-sm font-medium text-indigo-900">
-                            {msg.name}
-                          </p>
-                          <p className="mt-1 text-sm text-indigo-800">
-                            {msg.text}
-                          </p>
-                        </div>
-                      )}
-                    </div>
+                      Explore More
+                    </motion.a>
+                  </div>
+                </div>
+              </motion.div>
+
+              {/* AI Capability Card 2 - Glass Morphism */}
+              <motion.div 
+                className="group relative"
+                initial={{ opacity: 0, y: 50 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.1 }}
+                viewport={{ once: true }}
+                whileHover={{ y: -10 }}
+              >
+                <div className="absolute inset-0.5 bg-gradient-to-r from-blue-500 to-cyan-400 rounded-2xl blur opacity-75 group-hover:opacity-100 transition duration-1000 group-hover:duration-200"></div>
+                <div className="relative bg-white/10 backdrop-blur-md rounded-2xl p-8 h-full border border-white/10 hover:border-blue-400/30 transition-colors duration-300">
+                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center mb-6 transform group-hover:rotate-12 transition-transform duration-500">
+                    <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-2xl font-bold text-white mb-4">Intelligent Analytics</h3>
+                  <p className="text-gray-300 mb-6">Gain valuable insights from your data with advanced analytics and predictive modeling capabilities.</p>
+                  <ul className="space-y-3">
+                    {['Real-time dashboards', 'Predictive analytics', 'Custom reporting'].map((item, i) => (
+                      <motion.li 
+                        key={i}
+                        className="flex items-center text-gray-300 group-hover:text-white transition-colors duration-300"
+                        initial={{ x: -20, opacity: 0 }}
+                        animate={{ x: 0, opacity: 1 }}
+                        transition={{ delay: 0.1 * i }}
+                      >
+                        <svg className="w-5 h-5 text-blue-400 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        {item}
+                      </motion.li>
+                    ))}
+                  </ul>
+                  <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-t from-black/80 to-transparent flex items-end p-6">
+                    <motion.a 
+                      href="#contact"
+                      className="w-full py-3 px-6 bg-gradient-to-r from-blue-500 to-cyan-400 rounded-lg text-white font-medium text-center transform translate-y-4 group-hover:translate-y-0 transition-all duration-300"
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      Explore More
+                    </motion.a>
+                  </div>
+                </div>
+              </motion.div>
+
+              {/* AI Capability Card 3 - Floating Animation */}
+              <motion.div 
+                className="group relative"
+                initial={{ opacity: 0, y: 50 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.2 }}
+                viewport={{ once: true }}
+                whileHover={{ y: -10 }}
+              >
+                <div className="absolute inset-0.5 bg-gradient-to-r from-pink-500 to-rose-500 rounded-2xl blur opacity-75 group-hover:opacity-100 transition duration-1000 group-hover:duration-200"></div>
+                <div className="relative bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-8 h-full border border-gray-800 hover:border-pink-500/30 transition-colors duration-300">
+                  <motion.div 
+                    className="w-14 h-14 rounded-2xl bg-gradient-to-br from-pink-500 to-rose-500 flex items-center justify-center mb-6 mx-auto"
+                    animate={{ 
+                      y: [0, -10, 0],
+                      rotate: [0, 5, -5, 0]
+                    }}
+                    transition={{ 
+                      duration: 6,
+                      repeat: Infinity,
+                      repeatType: "reverse",
+                      ease: "easeInOut"
+                    }}
+                  >
+                    <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                    </svg>
+                  </motion.div>
+                  <h3 className="text-2xl font-bold text-white mb-4">Natural Language Processing</h3>
+                  <p className="text-gray-400 mb-6">Extract meaning and context from text data with our advanced NLP capabilities.</p>
+                  <ul className="space-y-3">
+                    {['Sentiment analysis', 'Entity recognition', 'Text classification'].map((item, i) => (
+                      <motion.li 
+                        key={i}
+                        className="flex items-center text-gray-400 group-hover:text-white transition-colors duration-300"
+                        initial={{ x: -20, opacity: 0 }}
+                        animate={{ x: 0, opacity: 1 }}
+                        transition={{ delay: 0.1 * i }}
+                      >
+                        <svg className="w-5 h-5 text-pink-400 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        {item}
+                      </motion.li>
+                    ))}
+                  </ul>
+                  <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-t from-black/80 to-transparent flex items-end p-6">
+                    <motion.a 
+                      href="#contact"
+                      className="w-full py-3 px-6 bg-gradient-to-r from-pink-500 to-rose-500 rounded-lg text-white font-medium text-center transform translate-y-4 group-hover:translate-y-0 transition-all duration-300"
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      Explore More
+                    </motion.a>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Built for the Future of Cloud + AI Feature Section */}
+      <section className="relative py-16 sm:py-20 lg:py-24 bg-gradient-to-br from-indigo-900 via-purple-900 to-violet-900 overflow-hidden">
+        {/* Background decorative elements */}
+        <div className="absolute inset-0 opacity-20">
+          <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 via-blue-500/10 to-indigo-500/10"></div>
+          <div className="absolute inset-0" style={{
+            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%239C92AC' fill-opacity='0.1'%3E%3Ccircle cx='30' cy='30' r='4'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+            backgroundSize: '60px 60px'
+          }}></div>
+        </div>
+        
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Section Header */}
+          <motion.div 
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8 }}
+            viewport={{ once: true }}
+            className="text-center mb-12 sm:mb-16 lg:mb-20"
+          >
+            <motion.h2 
+              initial={{ scale: 0.95 }}
+              whileInView={{ scale: 1 }}
+              transition={{ duration: 0.8, delay: 0.2 }}
+              viewport={{ once: true }}
+              className="text-3xl sm:text-4xl lg:text-5xl xl:text-6xl font-extrabold mb-4 sm:mb-6"
+            >
+              <span className="bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400 bg-clip-text text-transparent drop-shadow-2xl">
+                Built for the Future of
+              </span>
+              <br />
+              <span className="bg-gradient-to-r from-purple-400 via-pink-400 to-red-400 bg-clip-text text-transparent drop-shadow-2xl">
+                Cloud + AI
+              </span>
+            </motion.h2>
+            <motion.p 
+              initial={{ opacity: 0 }}
+              whileInView={{ opacity: 1 }}
+              transition={{ duration: 0.8, delay: 0.4 }}
+              viewport={{ once: true }}
+              className="text-lg sm:text-xl lg:text-2xl text-gray-300 max-w-3xl mx-auto leading-relaxed"
+            >
+              Revolutionize your workflow with AI-powered cloud solutions that adapt to your needs
+            </motion.p>
+          </motion.div>
+
+          {/* Feature Cards Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
+            {/* Feature 1: Smart Knowledge Hub */}
+            <motion.div
+              initial={{ opacity: 0, x: -50 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.8, delay: 0.2 }}
+              viewport={{ once: true }}
+              whileHover={{ 
+                scale: 1.02,
+                boxShadow: "0 25px 50px -12px rgba(139, 92, 246, 0.4)"
+              }}
+              className="relative group bg-white/10 backdrop-blur-xl rounded-3xl p-6 sm:p-8 lg:p-10 border border-white/20 hover:border-purple-400/50 transition-all duration-500"
+            >
+              {/* Floating PNG Illustration */}
+              <motion.div
+                animate={{ 
+                  y: [0, -10, 0],
+                  rotate: [0, 2, 0]
+                }}
+                transition={{ 
+                  duration: 4,
+                  repeat: Infinity,
+                  repeatType: "reverse"
+                }}
+                className="absolute top-4 right-4 w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-2xl flex items-center justify-center shadow-lg"
+              >
+                <FaRobot className="text-white text-2xl sm:text-3xl" />
+              </motion.div>
+              
+              {/* Glowing background effect */}
+              <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/20 via-blue-500/20 to-purple-500/20 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-xl"></div>
+              
+              <div className="relative z-10">
+                {/* Icon */}
+                <motion.div 
+                  whileHover={{ scale: 1.1, rotate: 5 }}
+                  className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-2xl flex items-center justify-center mb-6 shadow-xl"
+                >
+                  <FaLightbulb className="text-white text-2xl sm:text-3xl" />
+                </motion.div>
+                
+                {/* Content */}
+                <h3 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-4 flex items-center gap-3">
+                  <span>🧠</span>
+                  <span>Smart Knowledge Hub</span>
+                </h3>
+                
+                <p className="text-lg sm:text-xl text-gray-300 leading-relaxed mb-6">
+                  AI searches your cloud docs in seconds. From PDFs to logs — just ask.
+                </p>
+                
+                {/* Feature highlights */}
+                <div className="space-y-3">
+                  {[
+                    "Instant document search",
+                    "Natural language queries", 
+                    "Multi-format support"
+                  ].map((feature, idx) => (
+                    <motion.div
+                      key={idx}
+                      initial={{ opacity: 0, x: -20 }}
+                      whileInView={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.5, delay: 0.6 + idx * 0.1 }}
+                      viewport={{ once: true }}
+                      className="flex items-center gap-3 text-gray-300"
+                    >
+                      <div className="w-2 h-2 bg-cyan-400 rounded-full"></div>
+                      <span>{feature}</span>
+                    </motion.div>
                   ))}
                 </div>
-                <div className="mt-4 flex">
+              </div>
+            </motion.div>
+
+            {/* Feature 2: DevOps Copilot */}
+            <motion.div
+              initial={{ opacity: 0, x: 50 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.8, delay: 0.4 }}
+              viewport={{ once: true }}
+              whileHover={{ 
+                scale: 1.02,
+                boxShadow: "0 25px 50px -12px rgba(236, 72, 153, 0.4)"
+              }}
+              className="relative group bg-white/10 backdrop-blur-xl rounded-3xl p-6 sm:p-8 lg:p-10 border border-white/20 hover:border-pink-400/50 transition-all duration-500"
+            >
+              {/* Floating PNG Illustration */}
+              <motion.div
+                animate={{ 
+                  y: [0, -12, 0],
+                  rotate: [0, -2, 0]
+                }}
+                transition={{ 
+                  duration: 5,
+                  repeat: Infinity,
+                  repeatType: "reverse"
+                }}
+                className="absolute top-4 right-4 w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-pink-400 to-purple-500 rounded-2xl flex items-center justify-center shadow-lg"
+              >
+                <FaMagic className="text-white text-2xl sm:text-3xl" />
+              </motion.div>
+              
+              {/* Glowing background effect */}
+              <div className="absolute inset-0 bg-gradient-to-br from-pink-500/20 via-purple-500/20 to-violet-500/20 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-xl"></div>
+              
+              <div className="relative z-10">
+                {/* Icon */}
+                <motion.div 
+                  whileHover={{ scale: 1.1, rotate: -5 }}
+                  className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-pink-500 to-purple-600 rounded-2xl flex items-center justify-center mb-6 shadow-xl"
+                >
+                  <FaRobot className="text-white text-2xl sm:text-3xl" />
+                </motion.div>
+                
+                {/* Content */}
+                <h3 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-4 flex items-center gap-3">
+                  <span>⚙️</span>
+                  <span>DevOps Copilot</span>
+                </h3>
+                
+                <p className="text-lg sm:text-xl text-gray-300 leading-relaxed mb-6">
+                  Generate infra code, debug deploys, and automate your pipeline with LLMs.
+                </p>
+                
+                {/* Feature highlights */}
+                <div className="space-y-3">
+                  {[
+                    "Auto-generate infrastructure",
+                    "Intelligent debugging", 
+                    "Pipeline automation"
+                  ].map((feature, idx) => (
+                    <motion.div
+                      key={idx}
+                      initial={{ opacity: 0, x: -20 }}
+                      whileInView={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.5, delay: 0.8 + idx * 0.1 }}
+                      viewport={{ once: true }}
+                      className="flex items-center gap-3 text-gray-300"
+                    >
+                      <div className="w-2 h-2 bg-pink-400 rounded-full"></div>
+                      <span>{feature}</span>
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          </div>
+
+          {/* Call to Action */}
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.6 }}
+            viewport={{ once: true }}
+            className="text-center mt-12 sm:mt-16 lg:mt-20"
+          >
+            <motion.a
+              href="#contact"
+              whileHover={{ 
+                scale: 1.05,
+                boxShadow: "0 20px 40px -12px rgba(139, 92, 246, 0.5)"
+              }}
+              whileTap={{ scale: 0.95 }}
+              className="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold text-lg rounded-full shadow-xl hover:shadow-2xl transition-all duration-300 group"
+            >
+              <span>Experience the Future</span>
+              <motion.div
+                animate={{ x: [0, 5, 0] }}
+                transition={{ duration: 1.5, repeat: Infinity }}
+              >
+                <FaPaperPlane className="text-xl group-hover:rotate-12 transition-transform" />
+              </motion.div>
+            </motion.a>
+          </motion.div>
+        </div>
+      </section>
+
+            {/* Form */}
+
+            <section id="contact" className="py-24 bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">
+              Let&apos;s Build Something
+              <span className="bg-gradient-to-r from-pink-400 to-purple-600 bg-clip-text text-transparent"> Amazing Together</span>
+            </h2>
+            <p className="text-xl text-gray-300 max-w-3xl mx-auto">
+              Ready to transform your ideas into reality? Get in touch with our expert team and let&apos;s discuss your next project.
+            </p>
+          </div>
+
+          <div className="grid lg:grid-cols-2 gap-12 items-center">
+            {/* Contact Info */}
+            <div className="space-y-8">
+              <div className="flex items-start space-x-4">
+                <div className="flex-shrink-0">
+                  <div className="w-12 h-12 bg-gradient-to-r from-pink-500 to-purple-600 rounded-lg flex items-center justify-center">
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-white mb-2">Email Us</h3>
+                  <p className="text-gray-300">as@aascloud.info</p>
+                </div>
+              </div>
+
+              <div className="flex items-start space-x-4">
+                <div className="flex-shrink-0">
+                  <div className="w-12 h-12 bg-gradient-to-r from-pink-500 to-purple-600 rounded-lg flex items-center justify-center">
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                    </svg>
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-white mb-2">Call Us</h3>
+                  <p className="text-gray-300">+91- 7905838674</p>
+                </div>
+              </div>
+
+              <div className="flex items-start space-x-4">
+                <div className="flex-shrink-0">
+                  <div className="w-12 h-12 bg-gradient-to-r from-pink-500 to-purple-600 rounded-lg flex items-center justify-center">
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-white mb-2">Visit Us</h3>
+                  <p className="text-gray-300">Remote<br />Global</p>
+                </div>
+              </div>
+
+              <div className="pt-8">
+  <h3 className="text-lg font-semibold text-white mb-4">Follow Us</h3>
+  <div className="flex space-x-4">
+    {/* Instagram */}
+    <a href="https://www.instagram.com/aascloud.info/" target="_blank" rel="noopener noreferrer" className="w-10 h-10 bg-gray-800 hover:bg-gradient-to-r hover:from-pink-500 hover:to-purple-600 rounded-lg flex items-center justify-center transition-all duration-300">
+  <svg className="w-5 h-5 text-gray-300 hover:text-white" fill="currentColor" viewBox="0 0 24 24">
+    <path d="M7.75 2h8.5A5.75 5.75 0 0 1 22 7.75v8.5A5.75 5.75 0 0 1 16.25 22h-8.5A5.75 5.75 0 0 1 2 16.25v-8.5A5.75 5.75 0 0 1 7.75 2zm0 1.5A4.25 4.25 0 0 0 3.5 7.75v8.5A4.25 4.25 0 0 0 7.75 20.5h8.5a4.25 4.25 0 0 0 4.25-4.25v-8.5A4.25 4.25 0 0 0 16.25 3.5zm4.25 3.25a5.25 5.25 0 1 1 0 10.5 5.25 5.25 0 0 1 0-10.5zm0 1.5a3.75 3.75 0 1 0 0 7.5 3.75 3.75 0 0 0 0-7.5zm5.25.75a1 1 0 1 1 0 2 1 1 0 0 1 0-2z" />
+  </svg>
+</a>
+    {/* LinkedIn */}
+    <a href="https://www.linkedin.com/company/107565947/admin/dashboard/" target="_blank" rel="noopener noreferrer" className="w-10 h-10 bg-gray-800 hover:bg-gradient-to-r hover:from-pink-500 hover:to-purple-600 rounded-lg flex items-center justify-center transition-all duration-300">
+      <svg className="w-5 h-5 text-gray-300 hover:text-white" fill="currentColor" viewBox="0 0 24 24">
+        <path fillRule="evenodd" d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
+      </svg>
+    </a>
+  </div>
+</div>
+            </div>
+
+            {/* Contact Form */}
+            <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 border border-white/20">
+              <form action="https://formspree.io/f/movldyan" method="POST" className="space-y-6">
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div>
+                    <label htmlFor="firstName" className="block text-sm font-medium text-gray-300 mb-2">
+                      First Name *
+                    </label>
+                    <input
+                      type="text"
+                      id="firstName"
+                      name="firstName"
+                      required
+                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-all duration-300"
+                      placeholder="John"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="lastName" className="block text-sm font-medium text-gray-300 mb-2">
+                      Last Name *
+                    </label>
+                    <input
+                      type="text"
+                      id="lastName"
+                      name="lastName"
+                      required
+                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-all duration-300"
+                      placeholder="Doe"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
+                    Email Address *
+                  </label>
+                  <input
+                    type="email"
+                    id="email"
+                    name="email"
+                    required
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-all duration-300"
+                    placeholder="john@example.com"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="company" className="block text-sm font-medium text-gray-300 mb-2">
+                    Company
+                  </label>
                   <input
                     type="text"
-                    value={chatInput}
-                    onChange={(e) => setChatInput(e.target.value)}
-                    onKeyDown={handleChatKeyDown}
-                    className="flex-1 min-w-0 block w-full px-3 py-2 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                    placeholder="Ask me anything..."
+                    id="company"
+                    name="company"
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-all duration-300"
+                    placeholder="Your Company"
                   />
-                  <button
-                    type="button"
-                    onClick={handleSend}
-                    className="ml-8 inline-flex items-center px-6 py-2 text-base font-bold rounded-lg shadow-lg text-white bg-gradient-to-r from-indigo-600 via-blue-500 to-purple-500 hover:from-indigo-700 hover:to-purple-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-300 scale-100 hover:scale-105 active:scale-95"
+                </div>
+
+                <div>
+                  <label htmlFor="service" className="block text-sm font-medium text-gray-300 mb-2">
+                    Service Interested In
+                  </label>
+                  <select
+                    id="service"
+                    name="service"
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-all duration-300"
                   >
-                    Send
+                    <option value="" className="bg-gray-900">Select a service</option>
+                    <option value="frontend" className="bg-gray-900">Frontend Development</option>
+                    <option value="backend" className="bg-gray-900">Backend & APIs</option>
+                    <option value="cloud" className="bg-gray-900">Cloud & DevOps</option>
+                    <option value="ai" className="bg-gray-900">AI & Automation</option>
+                    <option value="mobile" className="bg-gray-900">Mobile Apps</option>
+                    <option value="design" className="bg-gray-900">UI/UX Design</option>
+                    <option value="other" className="bg-gray-900">Other</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label htmlFor="message" className="block text-sm font-medium text-gray-300 mb-2">
+                    Project Details *
+                  </label>
+                  <textarea
+                    id="message"
+                    name="message"
+                    rows={4}
+                    required
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-all duration-300 resize-none"
+                    placeholder="Tell us about your project, timeline, and any specific requirements..."
+                  ></textarea>
+                </div>
+
+                <div>
+                  <button
+                    type="submit"
+                    className="w-full bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white font-semibold py-4 px-8 rounded-lg transition-all duration-300 transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2 focus:ring-offset-transparent"
+                  >
+                    Send Message
+                    <svg className="inline-block ml-2 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                    </svg>
                   </button>
                 </div>
-              </div>
-              <div className="md:flex-1 p-6 bg-gray-50">
-                <h3 className="text-xl font-medium text-gray-900">
-                  AI Integration Benefits
-                </h3>
-                <ul className="mt-6 space-y-4">
-                  <li className="flex items-start">
-                    <div className="flex-shrink-0">
-                      <svg
-                        className="h-5 w-5 text-green-500"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M5 13l4 4L19 7"
-                        />
-                      </svg>
-                    </div>
-                    <p className="ml-3 text-sm text-gray-700">
-                      24/7 automated customer support with natural language
-                      understanding
-                    </p>
-                  </li>
-                  {/* ...repeat for other benefits... */}
-                </ul>
-                <div className="mt-8">
-                  <img
-                    src="https://placehold.co/400x300"
-                    alt="AI chatbot interface"
-                    className="rounded-lg shadow-sm"
-                  />
-                </div>
-              </div>
+
+                <p className="text-sm text-gray-400 text-center">
+                  We&apos;ll get back to you within 24 hours.
+                </p>
+              </form>
             </div>
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* About Section */}
-      <div id="about" className="py-12 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="lg:text-center">
-            <h2 className="text-3xl tracking-tight font-extrabold text-gray-900 sm:text-4xl">
-              About Our Team
-            </h2>
-            <p className="mt-4 max-w-2xl text-xl text-gray-500 lg:mx-auto">
-              Experts in full-stack application development and enterprise
-              solutions
-            </p>
-          </div>
-          <div className="mt-16">
-            <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
-              {[1, 2, 3, 4, 5, 6].map((i) => (
-                <div key={i} className="pt-6">
-                  <div className="flow-root bg-gray-50 rounded-lg px-6 pb-8 h-full">
-                    <div className="-mt-6">
-                      <div className="flex items-center justify-center">
-                        <span
-                          className={`inline-flex items-center justify-center p-2 ${
-                            i % 2 === 0
-                              ? "bg-green-500"
-                              : i === 6
-                              ? "bg-purple-500"
-                              : "bg-indigo-500"
-                          } rounded-full shadow-lg`}
-                        >
-                          <img
-                            src={`https://placehold.co/96x96?text=Team+${i}`}
-                            alt={`Team member ${i}`}
-                            className="h-24 w-24 rounded-full"
-                          />
-                        </span>
-                      </div>
-                      <h3 className="mt-6 text-lg font-medium text-center text-gray-900">
-                        Team Member {i}
-                      </h3>
-                      <p className="mt-1 text-sm text-center text-indigo-600">
-                        Role {i}
-                      </p>
-                      <p className="mt-4 text-base text-gray-500 text-center">
-                        This is a placeholder for a team member's bio. Add real
-                        content here to describe their expertise and
-                        contributions.
-                      </p>
-                      <div className="mt-6 pt-6 border-t border-gray-200">
-                        <h4 className="text-sm font-medium text-gray-900">
-                          Technologies
-                        </h4>
-                        <div className="mt-2 flex flex-wrap gap-1">
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-                            React
-                          </span>
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                            Next.js
-                          </span>
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                            TypeScript
-                          </span>
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                            Tailwind
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Customer Reviews Section */}
-      <div className="py-16 bg-gradient-to-b from-white to-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center">
-            <h2 className="text-4xl font-extrabold text-gray-900 sm:text-5xl">
-              What Our Customers Say
-            </h2>
-            <p className="mt-4 max-w-2xl text-xl text-gray-600 mx-auto">
-              Don't just take our word for it - hear from our satisfied clients
-            </p>
-          </div>
-
-          <div className="mt-16 grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-            {[
-              {
-                name: "Sarah Johnson",
-                role: "CTO at TechNova",
-                image: "https://randomuser.me/api/portraits/women/43.jpg",
-                rating: 5,
-                review:
-                  "The team delivered our e-commerce platform ahead of schedule. Their attention to detail and technical expertise is unmatched. Highly recommended!",
-                date: "2 weeks ago",
-              },
-              {
-                name: "Michael Chen",
-                role: "CEO at HealthPlus",
-                image: "https://randomuser.me/api/portraits/men/32.jpg",
-                rating: 5,
-                review:
-                  "The AI integration they built has saved us hundreds of hours in documentation. The team was professional and understood our needs perfectly.",
-                date: "1 month ago",
-              },
-              {
-                name: "Emily Rodriguez",
-                role: "Product Manager at FinSecure",
-                image: "https://randomuser.me/api/portraits/women/65.jpg",
-                rating: 4,
-                review:
-                  "Great work on our banking portal modernization. The new system is faster, more secure, and our customers love the improved UX. Will definitely work with them again!",
-                date: "3 weeks ago",
-              },
-              {
-                name: "David Kim",
-                role: "Founder at EduTech Solutions",
-                image: "https://randomuser.me/api/portraits/men/75.jpg",
-                rating: 5,
-                review:
-                  "Their mobile development team built our education app from scratch. The attention to performance and user experience was exceptional.",
-                date: "2 months ago",
-              },
-              {
-                name: "Priya Patel",
-                role: "Director at RetailX",
-                image: "https://randomuser.me/api/portraits/women/22.jpg",
-                rating: 5,
-                review:
-                  "The inventory management system they developed has streamlined our operations. The team was responsive and delivered beyond our expectations.",
-                date: "1 week ago",
-              },
-              {
-                name: "James Wilson",
-                role: "CIO at Global Logistics",
-                image: "https://randomuser.me/api/portraits/men/48.jpg",
-                rating: 4,
-                review:
-                  "Excellent work on our logistics tracking system. The real-time updates have improved our delivery times by 30%.",
-                date: "1 month ago",
-              },
-            ].map((review, index) => (
-              <div
-                key={index}
-                className="bg-white p-8 rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300"
+      {/* Service Details Modal */}
+      {isServiceModalOpen && selectedService && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={closeServiceModal}
+        >
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.9, opacity: 0 }}
+            transition={{ type: "spring", duration: 0.5 }}
+            className="bg-white/10 backdrop-blur-xl rounded-3xl p-6 sm:p-8 lg:p-10 max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-white/20"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-indigo-400 via-blue-400 to-purple-500 bg-clip-text text-transparent">
+                {selectedService.title}
+              </h2>
+              <button
+                onClick={closeServiceModal}
+                className="w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white transition-all duration-300 hover:scale-110"
               >
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <img
-                      className="h-12 w-12 rounded-full object-cover"
-                      src={review.image}
-                      alt={`${review.name}'s profile`}
-                    />
-                  </div>
-                  <div className="ml-4">
-                    <h4 className="text-lg font-semibold text-gray-900">
-                      {review.name}
-                    </h4>
-                    <p className="text-sm text-gray-600">{review.role}</p>
-                  </div>
-                </div>
-                <div className="mt-4 flex items-center">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <svg
-                      key={star}
-                      className={`h-5 w-5 ${
-                        star <= review.rating
-                          ? "text-yellow-400"
-                          : "text-gray-300"
-                      }`}
-                      fill="currentColor"
-                      viewBox="0 0 20 20"
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Service Description */}
+            <p className="text-lg text-gray-300 mb-8 leading-relaxed">
+              {selectedService.desc}
+            </p>
+
+            {/* Service Details Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Technologies */}
+              <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
+                <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                  <span className="w-2 h-2 bg-cyan-400 rounded-full"></span>
+                  Technologies
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {serviceDetails[selectedService.title]?.technologies.map((tech, idx) => (
+                    <span
+                      key={idx}
+                      className="px-3 py-1 bg-gradient-to-r from-indigo-500/20 to-purple-500/20 rounded-full text-sm text-white border border-white/20"
                     >
-                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                    </svg>
+                      {tech}
+                    </span>
                   ))}
                 </div>
-                <blockquote className="mt-4">
-                  <p className="text-gray-700 italic">"{review.review}"</p>
-                </blockquote>
-                <div className="mt-4 text-sm text-gray-500">{review.date}</div>
               </div>
-            ))}
-          </div>
 
-          <div className="mt-12 text-center">
-            <button className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-              Read more reviews
-              <svg
-                className="ml-2 -mr-1 w-5 h-5"
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Contact Section */}
-      <div id="contact" className="py-12 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="lg:text-center">
-            <h2 className="text-3xl tracking-tight font-extrabold text-gray-900 sm:text-4xl">
-              Ready to Get Started?
-            </h2>
-            <p className="mt-4 max-w-2xl text-xl text-gray-500 lg:mx-auto">
-              Let's discuss how we can build your next project together
-            </p>
-          </div>
-          <div className="mt-16">
-            <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
-              <div className="rounded-lg bg-gray-50 overflow-hidden shadow-lg p-8">
-                <h3 className="text-lg font-medium text-gray-900">
-                  Contact Information
+              {/* Deliverables */}
+              <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
+                <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                  <span className="w-2 h-2 bg-green-400 rounded-full"></span>
+                  Deliverables
                 </h3>
-                <p className="mt-4 text-base text-gray-500">
-                  Have questions about our services or want to discuss a
-                  potential project? Reach out to our team through any of these
-                  channels:
-                </p>
-                <div className="mt-6 space-y-4">
-                  <div className="flex items-center">
-                    <svg
-                      className="h-6 w-6 text-gray-500"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-                      />
+                <ul className="space-y-2">
+                  {serviceDetails[selectedService.title]?.deliverables.map((item, idx) => (
+                    <li key={idx} className="flex items-center gap-2 text-gray-300">
+                      <svg className="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* Timeline & Pricing */}
+              <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
+                <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                  <span className="w-2 h-2 bg-yellow-400 rounded-full"></span>
+                  Timeline & Pricing
+                </h3>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <svg className="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    <div className="ml-3 text-base text-gray-500">
-                      <p>contact@techstack.example</p>
-                      <p className="mt-1">Response within 24 hours</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center">
-                    <svg
-                      className="h-6 w-6 text-gray-500"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
-                      />
-                    </svg>
-                    <div className="ml-3 text-base text-gray-500">
-                      <p>
-                        <a href="tel:+91 7905838674">+91 7905838674</a>
-                      </p>
-                      <p className="mt-1">Mon-Fri from 9am to 5pm</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center">
-                    <svg
-                      className="h-6 w-6 text-gray-500"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-                      />
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-                      />
-                    </svg>
-                    <div className="ml-3 text-base text-gray-500">
-                      <p>123 Tech Street</p>
-                      <p className="mt-1">San Francisco, CA 94107</p>
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-8">
-                  <h4 className="text-sm font-medium text-gray-900">
-                    Follow Us
-                  </h4>
-                  <div className="mt-4 flex space-x-6">
-                    <a
-                      href="#"
-                      className="text-gray-500 hover:text-gray-700"
-                      aria-label="GitHub"
-                    >
-                      <svg
-                        className="h-6 w-6"
-                        fill="currentColor"
-                        viewBox="0 0 24 24"
-                        aria-hidden="true"
-                      >
-                        <path
-                          fillRule="evenodd"
-                          d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
-                          clipRule="evenodd"
-                        />
-                      </svg>
-                    </a>
-                    <a
-                      href="#"
-                      className="text-gray-500 hover:text-gray-700"
-                      aria-label="LinkedIn"
-                    >
-                      <svg
-                        className="h-6 w-6"
-                        fill="currentColor"
-                        viewBox="0 0 24 24"
-                        aria-hidden="true"
-                      >
-                        <path
-                          fillRule="evenodd"
-                          d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"
-                          clipRule="evenodd"
-                        />
-                      </svg>
-                    </a>
-                    <a
-                      href="#"
-                      className="text-gray-500 hover:text-gray-700"
-                      aria-label="Instagram"
-                    >
-                      <svg
-                        className="h-6 w-6"
-                        fill="currentColor"
-                        viewBox="0 0 24 24"
-                        aria-hidden="true"
-                      >
-                        <path d="M8.29 20.251c7.547 0 11.675-6.253 11.675-11.675 0-.178 0-.355-.012-.53A8.348 8.348 0 0022 5.92a8.19 8.19 0 01-2.357.646 4.118 4.118 0 001.804-2.27 8.224 8.224 0 01-2.605.996 4.107 4.107 0 00-6.993 3.743 11.65 11.65 0 01-8.457-4.287 4.106 4.106 0 001.27 5.477A4.072 4.072 0 012.8 9.713v.052a4.105 4.105 0 003.292 4.022 4.095 4.095 0 01-1.853.07 4.108 4.108 0 003.834 2.85A8.233 8.233 0 012 18.407a11.616 11.616 0 006.29 1.84" />
-                      </svg>
-                    </a>
-                    <a
-                      href="#"
-                      className="text-gray-500 hover:text-gray-700"
-                      aria-label="Twitter"
-                    >
-                      <svg
-                        className="h-6 w-6"
-                        fill="currentColor"
-                        viewBox="0 0 24 24"
-                        aria-hidden="true"
-                      >
-                        <path d="M8.29 20.251c7.547 0 11.675-6.253 11.675-11.675 0-.178 0-.355-.012-.53A8.348 8.348 0 0022 5.92a8.19 8.19 0 01-2.357.646 4.118 4.118 0 001.804-2.27 8.224 8.224 0 01-2.605.996 4.107 4.107 0 00-6.993 3.743 11.65 11.65 0 01-8.457-4.287 4.106 4.106 0 001.27 5.477A4.072 4.072 0 012.8 9.713v.052a4.105 4.105 0 003.292 4.022 4.095 4.095 0 01-1.853.07 4.108 4.108 0 003.834 2.85A8.233 8.233 0 012 18.407a11.616 11.616 0 006.29 1.84" />
-                      </svg>
-                    </a>
+                    <span className="text-gray-300">{serviceDetails[selectedService.title]?.timeline}</span>
                   </div>
                 </div>
               </div>
-              <div className="rounded-lg bg-gray-50 overflow-hidden shadow-lg p-8">
-                <form
-                  action="#"
-                  method="POST"
-                  className="grid grid-cols-1 gap-y-6"
-                >
-                  <div>
-                    <label
-                      htmlFor="name"
-                      className="block text-sm font-medium text-gray-700"
-                    >
-                      Name
-                    </label>
-                    <div className="mt-1">
-                      <input
-                        type="text"
-                        name="name"
-                        id="name"
-                        autoComplete="name"
-                        className="py-3 px-4 block w-full shadow-sm focus:ring-indigo-500 focus:border-indigo-500 border-gray-300 rounded-md"
-                      />
+
+              {/* Process */}
+              <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
+                <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                  <span className="w-2 h-2 bg-purple-400 rounded-full"></span>
+                  Our Process
+                </h3>
+                <div className="space-y-3">
+                  {serviceDetails[selectedService.title]?.process.map((step, idx) => (
+                    <div key={idx} className="flex items-center gap-3">
+                      <div className="w-6 h-6 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center text-white text-sm font-bold">
+                        {idx + 1}
+                      </div>
+                      <span className="text-gray-300">{step}</span>
                     </div>
-                  </div>
-                  <div>
-                    <label
-                      htmlFor="email"
-                      className="block text-sm font-medium text-gray-700"
-                    >
-                      Email
-                    </label>
-                    <div className="mt-1">
-                      <input
-                        type="email"
-                        name="email"
-                        id="email"
-                        autoComplete="email"
-                        className="py-3 px-4 block w-full shadow-sm focus:ring-indigo-500 focus:border-indigo-500 border-gray-300 rounded-md"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label
-                      htmlFor="phone"
-                      className="block text-sm font-medium text-gray-700"
-                    >
-                      Phone
-                    </label>
-                    <div className="mt-1">
-                      <input
-                        type="text"
-                        name="phone"
-                        id="phone"
-                        autoComplete="tel"
-                        className="py-3 px-4 block w-full shadow-sm focus:ring-indigo-500 focus:border-indigo-500 border-gray-300 rounded-md"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label
-                      htmlFor="message"
-                      className="block text-sm font-medium text-gray-700"
-                    >
-                      Message
-                    </label>
-                    <div className="mt-1">
-                      <textarea
-                        id="message"
-                        name="message"
-                        rows={4}
-                        className="py-3 px-4 block w-full shadow-sm focus:ring-indigo-500 focus:border-indigo-500 border-gray-300 rounded-md"
-                      ></textarea>
-                    </div>
-                  </div>
-                  <div>
-                    <button
-                      type="submit"
-                      className="w-full flex justify-center py-3 px-6 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                    >
-                      Send Message
-                    </button>
-                  </div>
-                </form>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
-        </div>
-      </div>
 
-      {/* Footer */}
-      <footer className="bg-gray-900 text-gray-200 pt-12 pb-8 px-4 sm:px-6 lg:px-8 mt-12">
-        <div className="max-w-7xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8">
-          <div>
-            <h3 className="text-sm font-semibold text-gray-400 tracking-wider uppercase">
-              Services
-            </h3>
-            <ul className="mt-4 space-y-4">
-              <li>
-                <a
-                  href="#"
-                  className="flex items-center gap-2 text-base text-gray-300 hover:text-white"
-                >
-                  <svg
-                    className="h-4 w-4 text-indigo-400"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 5l7 7-7 7"
-                    />
-                  </svg>
-                  Frontend Development
-                </a>
-              </li>
-              <li>
-                <a
-                  href="#"
-                  className="flex items-center gap-2 text-base text-gray-300 hover:text-white"
-                >
-                  <svg
-                    className="h-4 w-4 text-indigo-400"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 5l7 7-7 7"
-                    />
-                  </svg>
-                  Backend Services
-                </a>
-              </li>
-              <li>
-                <a
-                  href="#"
-                  className="flex items-center gap-2 text-base text-gray-300 hover:text-white"
-                >
-                  <svg
-                    className="h-4 w-4 text-indigo-400"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 5l7 7-7 7"
-                    />
-                  </svg>
-                  AI Integration
-                </a>
-              </li>
-              <li>
-                <a
-                  href="#"
-                  className="flex items-center gap-2 text-base text-gray-300 hover:text-white"
-                >
-                  <svg
-                    className="h-4 w-4 text-indigo-400"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 5l7 7-7 7"
-                    />
-                  </svg>
-                  Cloud Consulting
-                </a>
-              </li>
-            </ul>
-          </div>
-          <div>
-            <h3 className="text-sm font-semibold text-gray-400 tracking-wider uppercase">
-              Technologies
-            </h3>
-            <ul className="mt-4 space-y-4">
-              <li>
-                <a
-                  href="#"
-                  className="flex items-center gap-2 text-base text-gray-300 hover:text-white"
-                >
-                  <svg
-                    className="h-4 w-4 text-blue-400"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 5l7 7-7 7"
-                    />
-                  </svg>
-                  React.js
-                </a>
-              </li>
-              <li>
-                <a
-                  href="#"
-                  className="flex items-center gap-2 text-base text-gray-300 hover:text-white"
-                >
-                  <svg
-                    className="h-4 w-4 text-blue-400"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 5l7 7-7 7"
-                    />
-                  </svg>
-                  Node.js
-                </a>
-              </li>
-              <li>
-                <a
-                  href="#"
-                  className="flex items-center gap-2 text-base text-gray-300 hover:text-white"
-                >
-                  <svg
-                    className="h-4 w-4 text-blue-400"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 5l7 7-7 7"
-                    />
-                  </svg>
-                  Java Spring Boot
-                </a>
-              </li>
-              <li>
-                <a
-                  href="#"
-                  className="flex items-center gap-2 text-base text-gray-300 hover:text-white"
-                >
-                  <svg
-                    className="h-4 w-4 text-blue-400"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 5l7 7-7 7"
-                    />
-                  </svg>
-                  AWS/GCP
-                </a>
-              </li>
-            </ul>
-          </div>
-          <div>
-            <h3 className="text-sm font-semibold text-gray-400 tracking-wider uppercase">
-              Company
-            </h3>
-            <ul className="mt-4 space-y-4">
-              <li>
-                <a
-                  href="/About"
-                  className="flex items-center gap-2 text-base text-gray-300 hover:text-white"
-                >
-                  <svg
-                    className="h-4 w-4 text-green-400"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 5l7 7-7 7"
-                    />
-                  </svg>
-                  About
-                </a>
-              </li>
-              <li>
-                <a
-                  href="/Careers"
-                  className="flex items-center gap-2 text-base text-gray-300 hover:text-white"
-                >
-                  <svg
-                    className="h-4 w-4 text-green-400"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 5l7 7-7 7"
-                    />
-                  </svg>
-                  Careers
-                </a>
-              </li>
-              <li>
-                <a
-                  href="#"
-                  className="flex items-center gap-2 text-base text-gray-300 hover:text-white"
-                >
-                  <svg
-                    className="h-4 w-4 text-green-400"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 5l7 7-7 7"
-                    />
-                  </svg>
-                  Case Studies
-                </a>
-              </li>
-              <li>
-                <a
-                  href="/Contact"
-                  className="flex items-center gap-2 text-base text-gray-300 hover:text-white"
-                >
-                  <svg
-                    className="h-4 w-4 text-green-400"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 5l7 7-7 7"
-                    />
-                  </svg>
-                  Contact
-                </a>
-              </li>
-            </ul>
-          </div>
-          <div>
-            <h3 className="text-sm font-semibold text-gray-400 tracking-wider uppercase">
-              Legal
-            </h3>
-            <ul className="mt-4 space-y-4">
-              <li>
-                <a
-                  href="#"
-                  className="flex items-center gap-2 text-base text-gray-300 hover:text-white"
-                >
-                  <svg
-                    className="h-4 w-4 text-pink-400"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 5l7 7-7 7"
-                    />
-                  </svg>
-                  Privacy
-                </a>
-              </li>
-              <li>
-                <a
-                  href="#"
-                  className="flex items-center gap-2 text-base text-gray-300 hover:text-white"
-                >
-                  <svg
-                    className="h-4 w-4 text-pink-400"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 5l7 7-7 7"
-                    />
-                  </svg>
-                  Terms
-                </a>
-              </li>
-              <li>
-                <a
-                  href="#"
-                  className="flex items-center gap-2 text-base text-gray-300 hover:text-white"
-                >
-                  <svg
-                    className="h-4 w-4 text-pink-400"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 5l7 7-7 7"
-                    />
-                  </svg>
-                  Security
-                </a>
-              </li>
-              <li>
-                <a
-                  href="#"
-                  className="flex items-center gap-2 text-base text-gray-300 hover:text-white"
-                >
-                  <svg
-                    className="h-4 w-4 text-pink-400"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 5l7 7-7 7"
-                    />
-                  </svg>
-                  Cookies
-                </a>
-              </li>
-            </ul>
-          </div>
-        </div>
-        <div className="mt-8 border-t border-gray-700 pt-8 flex flex-col md:flex-row md:items-center md:justify-between">
-          <div className="flex space-x-6 mb-4 md:mb-0 md:order-2">
-            <a
-              href="#"
-              className="text-gray-400 hover:text-gray-300"
-              aria-label="GitHub"
-            >
-              <svg
-                className="h-6 w-6"
-                fill="currentColor"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
+            {/* Call to Action */}
+            <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
+              <motion.a
+                href="#contact"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="px-8 py-3 bg-gradient-to-r from-indigo-500 to-purple-500 text-white font-bold rounded-full shadow-xl hover:shadow-2xl transition-all duration-300 text-center"
+                onClick={closeServiceModal}
               >
-                <path
-                  fillRule="evenodd"
-                  d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            </a>
-            <a
-              href="#"
-              className="text-gray-400 hover:text-gray-300"
-              aria-label="LinkedIn"
-            >
-              <svg
-                className="h-6 w-6"
-                fill="currentColor"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
+                Get Started
+              </motion.a>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="px-8 py-3 bg-white/10 text-white font-bold rounded-full border border-white/20 hover:bg-white/20 transition-all duration-300"
+                onClick={closeServiceModal}
               >
-                <path
-                  fillRule="evenodd"
-                  d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            </a>
-            <a
-              href="#"
-              className="text-gray-400 hover:text-gray-300"
-              aria-label="Instagram"
-            >
-              <svg
-                className="h-6 w-6"
-                fill="currentColor"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-              >
-                <path d="M8.29 20.251c7.547 0 11.675-6.253 11.675-11.675 0-.178 0-.355-.012-.53A8.348 8.348 0 0022 5.92a8.19 8.19 0 01-2.357.646 4.118 4.118 0 001.804-2.27 8.224 8.224 0 01-2.605.996 4.107 4.107 0 00-6.993 3.743 11.65 11.65 0 01-8.457-4.287 4.106 4.106 0 001.27 5.477A4.072 4.072 0 012.8 9.713v.052a4.105 4.105 0 003.292 4.022 4.095 4.095 0 01-1.853.07 4.108 4.108 0 003.834 2.85A8.233 8.233 0 012 18.407a11.616 11.616 0 006.29 1.84" />
-              </svg>
-            </a>
-            <a
-              href="#"
-              className="text-gray-400 hover:text-gray-300"
-              aria-label="Twitter"
-            >
-              <svg
-                className="h-6 w-6"
-                fill="currentColor"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-              >
-                <path d="M8.29 20.251c7.547 0 11.675-6.253 11.675-11.675 0-.178 0-.355-.012-.53A8.348 8.348 0 0022 5.92a8.19 8.19 0 01-2.357.646 4.118 4.118 0 001.804-2.27 8.224 8.224 0 01-2.605.996 4.107 4.107 0 00-6.993 3.743 11.65 11.65 0 01-8.457-4.287 4.106 4.106 0 001.27 5.477A4.072 4.072 0 012.8 9.713v.052a4.105 4.105 0 003.292 4.022 4.095 4.095 0 01-1.853.07 4.108 4.108 0 003.834 2.85A8.233 8.233 0 012 18.407a11.616 11.616 0 006.29 1.84" />
-              </svg>
-            </a>
-          </div>
-          <p className="text-base text-gray-400 md:mt-0 md:order-1">
-            &copy; {new Date().getFullYear()} TechStack Solutions. All rights
-            reserved.
-          </p>
-        </div>
-      </footer>
-    </div>
-  );
+                Close
+              </motion.button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+
+      <Footer />
+      </div>
+    );
 }
